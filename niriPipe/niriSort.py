@@ -1,6 +1,7 @@
 from astropy.table import vstack, Table
 from astroquery.cadc import Cadc
 import logging
+from niriPipe.niriUtils import getFile
 import numpy as np
 import os
 
@@ -161,7 +162,22 @@ class NIRIData:
         return result
 
 
-
+    def downloadTable(self, table, directory=os.getcwd()):
+        """Downloads the results of a CADC query."""
+        cadc = Cadc()
+        urls = cadc.get_data_urls(table)
+        pids = list(table['productID'])
+        cwd = os.getcwd()
+        os.chdir(directory)
+        for url, pid in zip(urls, pids):
+            try:
+                filename = getFile(url)
+                logging.info("Downloaded {}".format(filename))
+            except Exception as e:
+                logging.error("{} failed to download.".format(pid))
+                os.chdir(cwd)
+                raise e
+        os.chdir(cwd)
 
 
 

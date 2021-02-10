@@ -86,7 +86,7 @@ def writeWithTempFile(request, filename):
             logging.error("Problem downloading {}.".format(filename))
             raise IOError
         f.seek(0)
-        with open(filename, 'w') as out_fp:
+        with open(filename, 'wb') as out_fp:
             out_fp.write(f.read())
 
     return filename

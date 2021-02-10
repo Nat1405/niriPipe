@@ -1,3 +1,4 @@
+import glob
 import os
 import shutil
 import pytest
@@ -75,3 +76,7 @@ def test_getFilesGN2018ADD10915(tmpdir):
 
     assert sorted(list(result['productID'])) == \
         sorted(list(set(sum([objects_list, flats_list, long_darks_list, short_darks_list], []))))
+
+    nData.downloadTable(result, directory=tmpdir)
+
+    assert len(glob.glob(os.path.join(tmpdir, 'N2*.fits'))) == 270
