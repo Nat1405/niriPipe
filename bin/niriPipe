@@ -1,0 +1,12 @@
+#!/usr/bin/env python
+
+import argparse
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='NIRI data processor.')
+    parser.add_argument('obsID', metavar='OBSID', type=str, nargs=1,
+                        help='an observation ID to process')
+
+    args = parser.parse_args()
+    print(args)

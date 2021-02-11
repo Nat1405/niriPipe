@@ -25,4 +25,5 @@ setuptools.setup(
     ],
     python_requires='>=3.6',
     package_data=PACKAGE_DATA,
+    scripts=['bin/niriPipe']
 )
