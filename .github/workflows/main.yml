@@ -4,14 +4,18 @@ on:
   push:
 
 jobs:
-  test_niri:
+  pytest:
     runs-on: ubuntu-latest
-    container: 
+    container:
       image: nat1405/niri:0.1
       credentials:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
+
     steps:
-      - name: Run in niri container.
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Run pytest, in dragons env, in container.
         run: |
-          echo "Hello World!"
+          conda run -n dragons pytest .
