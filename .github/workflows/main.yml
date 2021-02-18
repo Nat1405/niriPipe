@@ -1,0 +1,17 @@
+name: ci
+
+on:
+  push:
+
+jobs:
+  test_niri:
+    runs-on: ubuntu-latest
+    container: 
+      image: nat1405/niri:0.1
+      credentials:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    steps:
+      - name: Run in niri container.
+        run: |
+          echo "Hello World!"
