@@ -16,9 +16,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Run pytest, in dragons env, in container.
+      - name: Run pytest, in dragons env, in container, with coverage.
         run: |
-          conda run -n dragons pytest .
+          conda run -n dragons pip install -r dev_requirements.txt
+          conda run -n dragons coverage run -m pytest .
+          conda run -n dragons coverage xml -o coverage.xml
+
+      - name: Upload coverage to codecov
+        uses: codecov/codecov-action@v1
+        with:
+          files: coverage.xml
 
   deploy:
     runs-on: ubuntu-latest
