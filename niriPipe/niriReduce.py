@@ -1,9 +1,10 @@
-#!/usr/bin/env python
-
 import argparse
 
 
-if __name__ == "__main__":
+def niri_reduce_main():
+    """
+    Primary NIRI data processing entry point.
+    """
     parser = argparse.ArgumentParser(description='NIRI data processor.')
     parser.add_argument('obsID', metavar='OBSID', type=str, nargs=1,
                         help='an observation ID to process')
