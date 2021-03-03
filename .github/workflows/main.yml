@@ -4,19 +4,28 @@ on:
   push:
 
 jobs:
-  pytest:
+  unit_test:
     runs-on: ubuntu-latest
-    container:
-      image: nat1405/niri:0.1
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-
+    defaults:
+      run:
+        shell: bash -l {0}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Run pytest, in dragons env, in container, with coverage.
+      - name: Setup conda.
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          python-version: 3.6
+
+      - name: Create DRAGONS conda environment.
+        run: |
+          conda config --add channels http://ssb.stsci.edu/astroconda
+          conda config --add channels http://astroconda.gemini.edu/public
+          conda create -n dragons python=3.6 dragons stsci
+          conda info
+
+      - name: Run pytest, in dragons env, with coverage.
         run: |
           conda run -n dragons pip install -r dev_requirements.txt
           conda run -n dragons coverage run -m pytest .
@@ -27,9 +36,30 @@ jobs:
         with:
           files: coverage.xml
 
-  deploy:
+  upload_to_test_pypi:
     runs-on: ubuntu-latest
-    needs: pytest
+    needs: unit_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup python build
+        run: |
+          python3 -m pip install build --user
+
+      - name: Build a binary wheel and a source tarball
+        run: |
+          python3 -m build --sdist --wheel --outdir dist/ .
+
+      - name: Publish distribution 📦 to Test PyPI
+        uses: pypa/gh-action-pypi-publish@master
+        with:
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository_url: https://test.pypi.org/legacy/
+
+  deploy_container:
+    runs-on: ubuntu-latest
+    needs: [unit_test, upload_to_test_pypi]
     steps:
       - name: Get current datetime
         id: date
@@ -64,3 +94,13 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/niri:0.1
           build-args: |
             TIMESTAMP=${{ steps.date.outputs.date }}
+
+  int_test_container:
+    needs: deploy_container
+    runs-on: ubuntu-latest
+    container:
+      image: nat1405/niri:0.1
+    steps:
+      - name: Print niriPipe help in container
+        run: |
+          niriPipe --help
