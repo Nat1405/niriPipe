@@ -106,10 +106,6 @@ class Downloader:
             self.state['current_working_directory'],
             self.state['config']['DATARETRIEVAL']['raw_data_path']
         )
-        self.temp_downloads_path = os.path.join(
-            self.state['current_working_directory'],
-            self.state['config']['DATARETRIEVAL']['raw_data_path'],
-        )
         self._prep_directory(self.download_path)
 
     def _prep_directory(self, directory):
@@ -220,12 +216,11 @@ class Downloader:
                             os.path.basename(dest)))
         except Exception as e:
             self.logger.error("Problem downloading {}.".format(filename))
-            raise e
-        finally:
             # Remove temporary file
             if os.path.exists(tmp_dest):
                 self.logger.debug("Removing temp file {}".format(tmp_dest))
                 os.remove(tmp_dest)
+            raise e
 
         return filename
 
