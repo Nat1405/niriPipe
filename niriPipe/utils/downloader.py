@@ -109,14 +109,11 @@ class Downloader:
         self.temp_downloads_path = os.path.join(
             self.state['current_working_directory'],
             self.state['config']['DATARETRIEVAL']['raw_data_path'],
-            self.state['config']['DATARETRIEVAL']['temp_downloads_path']
         )
         self._prep_directory(self.download_path)
-        self._prep_directory(self.temp_downloads_path)
 
     def _prep_directory(self, directory):
-        if os.path.exists(directory):
-            shutil.rmtree(directory)
+        # Don't catch errors that result from directory already existing.
         os.mkdir(directory)
 
     def download_query_cadc(self):
@@ -193,21 +190,42 @@ class Downloader:
 
         # Write out content (first to a temp file) optionally doing md5 check.
         download_checksum = hashlib.md5()
-        with tempfile.TemporaryFile(
-                mode='w+b',
-                prefix=filename,
-                dir=self.temp_downloads_path) as f:
-            for chunk in response.iter_content(chunk_size=128):
-                f.write(chunk)
-                download_checksum.update(chunk)
-            if server_checksum and \
-               (server_checksum != download_checksum.hexdigest()):
-                self.logger.error("Problem downloading {}.".format(filename))
-                raise IOError
-            f.seek(0)
-            with open(os.path.join(
-                    self.download_path, filename), 'wb') as out_fp:
-                out_fp.write(f.read())
+        tmp_dest = os.path.join(self.download_path, '.'+filename)
+        dest = os.path.join(self.download_path, filename)
+        try:
+            with open(tmp_dest, mode='wb') as f:
+                for chunk in response.iter_content(chunk_size=128):
+                    f.write(chunk)
+                    download_checksum.update(chunk)
+            if server_checksum:
+                if server_checksum == download_checksum.hexdigest():
+                    self.logger.debug(
+                        "Download finished with matching checksum " +
+                        "for {}.".format(filename))
+                    shutil.move(tmp_dest, dest)
+                    self.logger.debug(
+                        "Moved {} to {}.".format(
+                            os.path.basename(tmp_dest),
+                            os.path.basename(dest)))
+                else:
+                    raise RuntimeError(
+                        "Checksum mismatch for {}.".format(filename))
+            else:
+                self.logger.debug(
+                        "Download finished for {}.".format(filename))
+                shutil.move(tmp_dest, dest)
+                self.logger.debug(
+                        "Moved {} to {}.".format(
+                            os.path.basename(tmp_dest),
+                            os.path.basename(dest)))
+        except Exception as e:
+            self.logger.error("Problem downloading {}.".format(filename))
+            raise e
+        finally:
+            # Remove temporary file
+            if os.path.exists(tmp_dest):
+                self.logger.debug("Removing temp file {}".format(tmp_dest))
+                os.remove(tmp_dest)
 
         return filename
 

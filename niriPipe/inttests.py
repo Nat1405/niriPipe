@@ -146,7 +146,7 @@ def downloader_inttest():
     d.download_query_cadc()
 
     # Verify hash of downloaded files is correct.
-    expected_hash = '0d6ae285dcdb60904561aca79618afef'
+    expected_hash = '4b00b29786d6d4546675f3e108682c69'
     out_hash = md5_of_dir(os.path.join(
                 state['current_working_directory'],
                 state['config']['DATARETRIEVAL']['raw_data_path']))
@@ -155,4 +155,4 @@ def downloader_inttest():
     else:
         raise RuntimeError(
             "Hash of downloads '{}' is different ".format(out_hash) +
-            "than the expected value of '0d6ae285dcdb60904561aca79618afef'.")
+            "than the expected value of '{}'.".format(expected_hash))

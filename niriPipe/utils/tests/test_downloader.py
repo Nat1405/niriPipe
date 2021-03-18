@@ -70,6 +70,7 @@ from unittest.mock import patch, Mock
 import pytest
 import astropy.table
 import os
+import shutil
 import logging
 import datetime
 from niriPipe.utils.downloader import Downloader
@@ -102,7 +103,6 @@ def get_state():
             'config': {
                 'DATARETRIEVAL': {
                     'raw_data_path': 'rawData',
-                    'temp_downloads_path': '.temp_downloads'
                 }
             }
         }
@@ -171,6 +171,7 @@ class TestDownloader(unittest.TestCase):
         d = Downloader(table=table, state=state)
         with pytest.raises(KeyError):
             d.download_query_cadc()
+        shutil.rmtree(d.download_path)
 
         # publisherID column missing
         garbage = [None]
@@ -223,14 +224,13 @@ class TestDownloader(unittest.TestCase):
         d = Downloader(table=None, state=state)
         d._write_with_temp_file(
             response,
-            filename=os.path.join(
-                d.download_path,
-                'fake_file.txt'
-            )
+            filename='fake_file.txt'
         )
 
         with open(os.path.join(d.download_path, 'fake_file.txt')) as f:
             assert f.read() == 'bar\n'
+        if os.path.exists(d.download_path):
+            shutil.rmtree(d.download_path)
 
         # Try the same, but missing Content-MD5
         response = MockResponse(
@@ -246,20 +246,21 @@ class TestDownloader(unittest.TestCase):
         )
         with open('fake_content', 'w') as f:
             f.write("bar\n")
+        if os.path.exists(d.download_path):
+            shutil.rmtree(d.download_path)
 
         d = Downloader(table=None, state=state)
         with self._caplog.at_level(logging.WARNING):
             d._write_with_temp_file(
                 response,
-                filename=os.path.join(
-                    d.download_path,
-                    'fake_file.txt'
-                )
+                filename='fake_file.txt'
             )
         assert 'Content-MD5 header not found for file' in self._caplog.text
 
         with open(os.path.join(d.download_path, 'fake_file.txt')) as f:
             assert f.read() == 'bar\n'
+        if os.path.exists(d.download_path):
+            shutil.rmtree(d.download_path)
 
         # Test catch of an MD5 mismatch
         response = MockResponse(
@@ -277,13 +278,10 @@ class TestDownloader(unittest.TestCase):
             f.write("bar\n")
 
         d = Downloader(table=None, state=state)
-        with pytest.raises(IOError):
+        with pytest.raises(RuntimeError):
             d._write_with_temp_file(
                 response,
-                filename=os.path.join(
-                    d.download_path,
-                    'fake_file.txt'
-                )
+                filename='fake_file.txt'
             )
 
     # Test querying Gemini observatory archive for
