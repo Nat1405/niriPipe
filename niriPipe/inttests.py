@@ -129,8 +129,7 @@ def downloader_inttest():
             'current_working_directory': os.getcwd(),
             'config': {
                 'DATARETRIEVAL': {
-                    'raw_data_path': 'rawData',
-                    'temp_downloads_path': '.temp_downloads'
+                    'raw_data_path': 'rawData'
                 }
             }
         }
@@ -172,10 +171,10 @@ def finder_inttest():
     state = {
         'config': {
             'DATAFINDER': {
-                'min_objects': 1,
-                'min_flats': 1,
-                'min_longdarks': 1,
-                'min_shortdarks': 0
+                'min_objects': '1',
+                'min_flats': '1',
+                'min_longdarks': '1',
+                'min_shortdarks': '0'
             }
         },
         'current_stack': {
@@ -243,10 +242,10 @@ def finder_inttest():
     state = {
         'config': {
             'DATAFINDER': {
-                'min_objects': 1,
-                'min_flats': 1,
-                'min_longdarks': 1,
-                'min_shortdarks': 0
+                'min_objects': '1',
+                'min_flats': '1',
+                'min_longdarks': '1',
+                'min_shortdarks': '0'
             }
         },
         'current_stack': {

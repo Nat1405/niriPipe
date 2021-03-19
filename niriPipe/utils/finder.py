@@ -261,7 +261,7 @@ class Finder:
         try:
             table = Finder._do_query(query)
         except Exception as e:
-            if self.state['config']['DATAFINDER'][key]:
+            if int(self.state['config']['DATAFINDER'][key]):
                 logging.critical("{} query failed.".format(frame_type))
                 raise e
             else:
@@ -269,7 +269,7 @@ class Finder:
                 return astropy.table.Table(names=('publisherID', 'productID'))
 
         if len(table) < \
-                self.state['config']['DATAFINDER'][key]:
+                int(self.state['config']['DATAFINDER'][key]):
             raise RuntimeError("Required {} {} frames; found {}.".format(
                 self.state['config']['DATAFINDER'][key],
                 frame_type,
