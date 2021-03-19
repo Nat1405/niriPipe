@@ -101,7 +101,7 @@ class Downloader:
     def __init__(self, table, state):
         self.table = table
         self.state = state
-        self.logger = logging.getLogger('niriPipe.utils.downloader.Downloader')
+        self.logger = logging.getLogger(__name__)
         self.download_path = os.path.join(
             self.state['current_working_directory'],
             self.state['config']['DATARETRIEVAL']['raw_data_path']
@@ -136,7 +136,7 @@ class Downloader:
         for url, pid in zip(urls, pids):
             try:
                 filename = self._get_file(url)
-                self.logger.debug("Downloaded {}".format(filename))
+                self.logger.info("Downloaded {}".format(filename))
             except Exception as e:
                 self.logger.warning(
                     "Frame {} failed to download.".format(pid),
