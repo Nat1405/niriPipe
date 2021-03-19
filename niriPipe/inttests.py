@@ -76,11 +76,12 @@ def create_logger():
     root_logger = logging.getLogger('niriPipe')
     root_logger.setLevel(logging.DEBUG)
     root_logger.propagate = True
-    ch = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s-%(name)s-%(levelname)s-%(message)s')
-    ch.setFormatter(formatter)
-    root_logger.addHandler(ch)
+    if not root_logger.hasHandlers():
+        ch = logging.StreamHandler()
+        formatter = logging.Formatter(
+            '%(asctime)s-%(name)s-%(levelname)s-%(message)s')
+        ch.setFormatter(formatter)
+        root_logger.addHandler(ch)
 
     module_logger = logging.getLogger('niriPipe.inttests')
     return module_logger
