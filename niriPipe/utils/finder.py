@@ -165,6 +165,8 @@ class Finder:
             self.state['current_stack']['mjd_date'] = \
                 (object_table['time_bounds_lower'][0] +
                     object_table['time_bounds_lower'][0])/2
+            self.state['current_stack']['proposal_id'] = \
+                object_table['proposal_id'][0]
             self.state['current_stack']['camera'] = \
                 self._metadata_from_header(
                     object_table[0]['productID']+'.fits', card='CAMERA')
@@ -220,10 +222,8 @@ class Finder:
         """
         longdark_query = self.query_prefix + \
             "AND Observation.type = 'DARK' " + \
-            "AND Plane.time_bounds_lower >= '{:.4f}' ".format(
-                self.state['current_stack']['mjd_date'] - 2) + \
-            "AND Plane.time_bounds_lower <= '{:.4f}' ".format(
-                self.state['current_stack']['mjd_date'] + 2) + \
+            "AND Observation.proposal_id = '{}' ".format(
+                self.state['current_stack']['proposal_id']) + \
             "AND Plane.time_exposure = '{}' ".format(
                 self.state['current_stack']['exptime']) + \
             self.query_suffix

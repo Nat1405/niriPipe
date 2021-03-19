@@ -179,7 +179,8 @@ def finder_inttest():
             }
         },
         'current_stack': {
-            'obs_name': 'GN-2019A-FT-108-12'
+            'obs_name': 'GN-2019A-FT-108-12',
+            'proposal_id': 'GN-2019A-FT-108'
         }
     }
 
@@ -250,7 +251,8 @@ def finder_inttest():
             }
         },
         'current_stack': {
-            'obs_name': 'GN-2007B-Q-85-24'
+            'obs_name': 'GN-2007B-Q-85-24',
+            'proposal_id': 'GN-2007B-Q-85'
         }
     }
 

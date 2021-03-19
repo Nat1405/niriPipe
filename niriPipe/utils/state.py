@@ -9,6 +9,8 @@ def get_initial_state(obs_name=None, configfile=None):
     state['current_stack'] = {}
     try:
         state['current_stack']['obs_name'] = obs_name[0]
+        state['current_stack']['proposal_id'] = \
+            '-'.join(obs_name[0].split('-')[:-1])
     except IndexError:
         raise ValueError("No obs_name provided.")
 
