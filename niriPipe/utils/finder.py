@@ -268,7 +268,9 @@ class Finder:
                 raise e
             else:
                 self.logger.debug("Found no frames; returning empty table.")
-                return astropy.table.Table(names=('publisherID', 'productID'))
+                return astropy.table.Table(names=(
+                    'publisherID', 'productID', 'time_bounds_lower',
+                    'observationID'))
 
         if len(table) < \
                 int(self.state['config']['DATAFINDER'][key]):
