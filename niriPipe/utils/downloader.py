@@ -157,7 +157,7 @@ class Downloader:
                 r.headers['Content-Disposition'])[0]
             # Some filenames now have extra quotation marks
             filename = filename.replace('"', '')
-        except KeyError:
+        except (KeyError, IndexError):
             # 'Content-Disposition' header wasn't found, so parse filename
             # from URL. Typical URL looks like:
             # https://www.cadc-ccda.hia-iha.nrc-cnrc.gc.ca/data/pub/GEM/N20140505S0114.fits?RUNID=mf731ukqsipqpdgk
