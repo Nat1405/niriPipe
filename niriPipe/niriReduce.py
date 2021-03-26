@@ -1,14 +1,10 @@
 import argparse
 import niriPipe.inttests
-
-
-def run_main(*args, **kwargs):
-    print("Recieved the following args:")
-    for arg in args:
-        print(arg)
-    print("Recieved the following kwargs:")
-    for arg in kwargs:
-        print("{}: {}".format(arg, kwargs[arg]))
+import logging
+import os
+import pkg_resources
+import json
+import glob
 
 
 def _create_logger(verbose=False):
@@ -85,7 +81,6 @@ def run_main(args):
         raise RuntimeError("Output stack not found.")
 
     root_logger.info("Pipeline finished!")
->>>>>>> 7e5b4ee... Adds various fixes for first batch run.
 
 
 def niri_reduce_main():
