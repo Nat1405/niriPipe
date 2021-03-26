@@ -92,7 +92,7 @@ class Finder:
         self.query_prefix = \
             "SELECT publisherID, productID, energy_bandpassName, " + \
             "time_bounds_lower, time_exposure, type, intent, " + \
-            "observationID " + \
+            "observationID, proposal_id " + \
             "FROM caom2.Plane AS Plane " + \
             "JOIN caom2.Observation AS Observation " + \
             "ON Plane.obsID = Observation.obsID " + \

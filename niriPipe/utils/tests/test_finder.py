@@ -151,9 +151,9 @@ class TestFinder(unittest.TestCase):
                     [58000.01],
                     ['GN-CAL20190404']],
                 names=[
-                    'productID', 'publisherID', 'time_exposure',
-                    'energy_bandpassName', 'time_bounds_lower',
-                    'proposal_id']),
+                    'productID', 'publisherID', 'observationID',
+                    'time_exposure', 'energy_bandpassName',
+                    'time_bounds_lower', 'proposal_id']),
             astropy.table.Table(
                 [
                     ['flat1', 'flat2'],
