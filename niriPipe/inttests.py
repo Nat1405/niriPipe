@@ -64,13 +64,12 @@
 #
 #
 # ***********************************************************************
-from astroquery.cadc import Cadc
 import os
 import logging
 import hashlib
 from pathlib import Path
 import niriPipe.utils.downloader
-import niriPipe.utils.finder
+from niriPipe.utils.finder import Finder
 
 
 def create_logger():
@@ -122,11 +121,7 @@ def downloader_inttest():
         "AND proposal_id = 'GN-2019A-FT-108'"
 
     try:
-        cadc = Cadc()
-        job = cadc.create_async(query)
-        job.run().wait()
-        job.raise_if_error()
-        table = job.fetch_result().to_table()
+        table = Finder._do_query(query)
     except Exception:
         logging.exception("Problem getting table from CADC.")
 
@@ -191,7 +186,7 @@ def finder_inttest():
     module_logger.info("Starting finder inttest with stack {}".format(
         state['current_stack']['obs_name']))
 
-    CADC_data_finder = niriPipe.utils.finder.Finder(state=state)
+    CADC_data_finder = Finder(state=state)
     table = CADC_data_finder.run()
     table.sort(['productID'])
 
@@ -214,8 +209,7 @@ def finder_inttest():
     desired_frames.sort()
 
     for frame in desired_frames:
-        if frame not in table['productID']:
-            raise RuntimeError("Frame {} not found.".format(frame))
+        assert frame in table['productID'], "Frame {} not found.".format(frame)
 
     module_logger.info(
         "Test for stack GN-2019A-FT-108-12 succeeded. " +
@@ -263,16 +257,14 @@ def finder_inttest():
     module_logger.info("Starting finder inttest with stack {}".format(
         state['current_stack']['obs_name']))
 
-    CADC_data_finder = niriPipe.utils.finder.Finder(state=state)
+    CADC_data_finder = Finder(state=state)
     table = CADC_data_finder.run()
-    table.sort(['productID'])
 
     module_logger.debug("Resulting table:")
     module_logger.debug('\n'+'\n'.join(table.pformat_all()))
 
     for frame in desired_frames:
-        if frame not in table['productID']:
-            raise RuntimeError("Frame {} not found.".format(frame))
+        assert frame in table['productID'], "Frame {} not found.".format(frame)
 
     module_logger.info(
         "Test for stack GN-2007B-Q-85-24 succeeded. " +

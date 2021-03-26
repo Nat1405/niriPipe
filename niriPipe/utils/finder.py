@@ -80,7 +80,8 @@ class Finder:
 
     def __init__(self, state):
         self.state = state
-        self.logger = logging.getLogger('niriPipe.utils.finder')
+        self.logger = logging.getLogger('{}.{}'.format(
+            self.__module__, self.__class__.__name__))
         try:
             self._log_basic_constraints()
         except KeyError as e:
@@ -88,6 +89,17 @@ class Finder:
                 "Insufficient constraints provided; " +
                 "is the config file complete?")
             raise e
+        self.query_prefix = \
+            "SELECT publisherID, productID, energy_bandpassName, " + \
+            "time_bounds_lower, time_exposure, type, intent, " + \
+            "observationID " + \
+            "FROM caom2.Plane AS Plane " + \
+            "JOIN caom2.Observation AS Observation " + \
+            "ON Plane.obsID = Observation.obsID " + \
+            "WHERE Observation.collection = 'GEMINI' " + \
+            "AND Observation.instrument_name = 'NIRI' " + \
+            "AND Plane.dataProductType = 'image' "
+        self.query_suffix = "ORDER BY observationID"
 
     def run(self):
         """
@@ -133,18 +145,10 @@ class Finder:
 
         Should be called before any of the find_cal_* methods.
         """
-        object_query = \
-            "SELECT publisherID, productID, energy_bandpassName, " + \
-            "time_bounds_lower, time_exposure, type, intent " + \
-            "FROM caom2.Plane AS Plane " + \
-            "JOIN caom2.Observation AS Observation " + \
-            "ON Plane.obsID = Observation.obsID " + \
-            "WHERE Observation.collection = 'GEMINI' " + \
-            "AND Observation.instrument_name = 'NIRI' " + \
-            "AND Plane.dataProductType = 'image' " + \
+        object_query = self.query_prefix + \
             "AND Observation.observationID LIKE '{}%' ".format(
-                self.state['current_stack']['obs_name']
-                )
+                self.state['current_stack']['obs_name']) + \
+            self.query_suffix
 
         object_table = self._find_frames(object_query, 'object')
 
@@ -177,22 +181,15 @@ class Finder:
         NIRI has three cameras and (I think) we need to make sure the camera
         used in flats matches the camera used for the object frames.
         """
-        flat_query = \
-            "SELECT publisherID, productID, energy_bandpassName, " + \
-            "time_bounds_lower, time_exposure, type, intent " + \
-            "FROM caom2.Plane AS Plane " + \
-            "JOIN caom2.Observation AS Observation " + \
-            "ON Plane.obsID = Observation.obsID " + \
-            "WHERE Observation.collection = 'GEMINI' " + \
-            "AND Observation.instrument_name = 'NIRI' " + \
-            "AND Plane.dataProductType = 'image' " + \
+        flat_query = self.query_prefix + \
             "AND Observation.type = 'FLAT' " + \
             "AND Plane.time_bounds_lower >= '{}' ".format(
                 self.state['current_stack']['mjd_date'] - 2) + \
             "AND Plane.time_bounds_lower <= '{}' ".format(
                 self.state['current_stack']['mjd_date'] + 2) + \
             "AND Plane.energy_bandpassName = '{}' ".format(
-                self.state['current_stack']['filter'])
+                self.state['current_stack']['filter']) + \
+            self.query_suffix
 
         flat_table = self._find_frames(flat_query, 'flat')
 
@@ -220,22 +217,15 @@ class Finder:
 
         Long darks are darks with the same integration time as object frames.
         """
-        longdark_query = \
-            "SELECT publisherID, productID, energy_bandpassName, " + \
-            "time_bounds_lower, time_exposure, type, intent " + \
-            "FROM caom2.Plane AS Plane " + \
-            "JOIN caom2.Observation AS Observation " + \
-            "ON Plane.obsID = Observation.obsID " + \
-            "WHERE Observation.collection = 'GEMINI' " + \
-            "AND Observation.instrument_name = 'NIRI' " + \
-            "AND Plane.dataProductType = 'image' " + \
+        longdark_query = self.query_prefix + \
             "AND Observation.type = 'DARK' " + \
             "AND Plane.time_bounds_lower >= '{}' ".format(
                 self.state['current_stack']['mjd_date'] - 2) + \
             "AND Plane.time_bounds_lower <= '{}' ".format(
                 self.state['current_stack']['mjd_date'] + 2) + \
             "AND Plane.time_exposure = '{}' ".format(
-                self.state['current_stack']['exptime'])
+                self.state['current_stack']['exptime']) + \
+            self.query_suffix
 
         return self._find_frames(longdark_query, 'longdark')
 
@@ -245,22 +235,15 @@ class Finder:
 
         Used to create a "fresh" bad pixel mask.
         """
-        shortdark_query = \
-            "SELECT publisherID, productID, energy_bandpassName, " + \
-            "time_bounds_lower, time_exposure, type, intent " + \
-            "FROM caom2.Plane AS Plane " + \
-            "JOIN caom2.Observation AS Observation " + \
-            "ON Plane.obsID = Observation.obsID " + \
-            "WHERE Observation.collection = 'GEMINI' " + \
-            "AND Observation.instrument_name = 'NIRI' " + \
-            "AND Plane.dataProductType = 'image' " + \
+        shortdark_query = self.query_prefix + \
             "AND Observation.type = 'DARK' " + \
             "AND Plane.time_bounds_lower >= '{}' ".format(
                 self.state['current_stack']['mjd_date'] - 2) + \
             "AND Plane.time_bounds_lower <= '{}' ".format(
                 self.state['current_stack']['mjd_date'] + 2) + \
             "AND Plane.time_exposure >= '0.99' " + \
-            "AND Plane.time_exposure <= '1.01' "
+            "AND Plane.time_exposure <= '1.01' " + \
+            self.query_suffix
 
         return self._find_frames(shortdark_query, 'shortdark')
 
@@ -276,7 +259,7 @@ class Finder:
         self.logger.debug("Finding {} frames.".format(frame_type))
         key = 'min_{}s'.format(frame_type)
         try:
-            table = self._do_query(query)
+            table = Finder._do_query(query)
         except Exception as e:
             if self.state['config']['DATAFINDER'][key]:
                 logging.critical("{} query failed.".format(frame_type))
@@ -294,7 +277,8 @@ class Finder:
         self.logger.debug("Found {} {} frames.".format(len(table), frame_type))
         return table
 
-    def _do_query(self, query):  # pragma: no cover
+    @staticmethod
+    def _do_query(query):  # pragma: no cover
         """
         Does a CADC async query.
         """
@@ -342,7 +326,6 @@ class Finder:
         self.logger.debug(
             "Segmentation starting with {} frames.".format(len(in_table)))
         # Do segmentation based on state['current_stack']['mjd+date']
-        in_table.sort(['publisherID'])
 
         # Make a new column with the observation name
         # Test strings:
@@ -350,19 +333,19 @@ class Finder:
         # ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-12-010/N20190405S0120
         #   ivo://cadc.nrc.ca/GEMINI?GN-CAL20190406-8-004/N20190406S0115
         # Results:
-        # GN-CAL20190404-10, GN-2019A-FT-108, GN-CAL20190406-8
+        # GN-CAL20190404-10, GN-2019A-FT-108-12, GN-CAL20190406-8
         pattern = re.compile(
-            r'(?<=\?)(?:[^-]*-CAL[^-]*-[^-]*|[^-]*-[^-]*-[^-]*-[^-]*)')
+            r'.+?(?=-\d\d\d$)')
 
         new_column = []
-        for item in in_table['publisherID']:
+        for item in in_table['observationID']:
             try:
                 tmp = pattern.search(item).group()
             except TypeError:  # pragma: no cover
                 tmp = pattern.search(item.decode('utf-8')).group()
             except AttributeError:
                 self.logger.warning(
-                    "Unable to parse publisherID {}; ".format(item) +
+                    "Unable to parse observationID {}; ".format(item) +
                     "quiting segmentation.")
                 return in_table
             new_column.append(tmp)

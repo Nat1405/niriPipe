@@ -145,12 +145,14 @@ class TestFinder(unittest.TestCase):
                     ['object'],
                     ['ivo://cadc.nrc.ca/GEMINI?GN-CAL20190404-10-013/' +
                         'N20_object_00'],
+                    ['GN-CAL20190404-10-013'],
                     [1.0],
                     ['J'],
                     [58000.01]],
                 names=[
-                    'productID', 'publisherID', 'time_exposure',
-                    'energy_bandpassName', 'time_bounds_lower']),
+                    'productID', 'publisherID', 'observationID',
+                    'time_exposure', 'energy_bandpassName',
+                    'time_bounds_lower']),
             astropy.table.Table(
                 [
                     ['flat1', 'flat2'],
@@ -158,25 +160,34 @@ class TestFinder(unittest.TestCase):
                         'N20_flat_00',
                         'ivo://cadc.nrc.ca/GEMINI?GN-CAL20190404-12-013/' +
                         'N20_flat_01'],
+                    ['GN-CAL20190404-10-013', 'GN-CAL20190404-12-013'],
                     [58000.02, 58000.01],
                 ],
-                names=['productID', 'publisherID', 'time_bounds_lower']),
+                names=[
+                    'productID', 'publisherID', 'observationID',
+                    'time_bounds_lower']),
             astropy.table.Table(
                 [
                     ['longdark'],
                     ['ivo://cadc.nrc.ca/GEMINI?GN-CAL20190404-10-013/' +
                         'N20_longdark_00'],
+                    ['GN-CAL20190404-12-013'],
                     [58000.01],
                 ],
-                names=['productID', 'publisherID', 'time_bounds_lower']),
+                names=[
+                    'productID', 'publisherID', 'observationID',
+                    'time_bounds_lower']),
             astropy.table.Table(
                 [
                     ['shortdark'],
                     ['ivo://cadc.nrc.ca/GEMINI?GN-CAL20190404-10-013/' +
                         'N20_shortdark_00'],
+                    ['GN-CAL20190404-12-013'],
                     [58000.01],
                 ],
-                names=['productID', 'publisherID', 'time_bounds_lower']),
+                names=[
+                    'productID', 'publisherID', 'observationID',
+                    'time_bounds_lower']),
         ])
     @patch.object(Finder, '_metadata_from_header',
                   return_value='f6')
@@ -278,8 +289,9 @@ class TestFinder(unittest.TestCase):
         state = get_state()
 
         empty_table = astropy.table.Table(
-            [[], [], []],
-            names=['productID', 'publisherID', 'time_bounds_lower'])
+            [[], [], [], []],
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower'])
 
         self._caplog.clear()
         with self._caplog.at_level(logging.WARNING):
@@ -293,8 +305,10 @@ class TestFinder(unittest.TestCase):
         one_row_table = astropy.table.Table([
             ['foo'],
             ['ivo://cadc.nrc.ca/GEMINI?GN-CAL20190404-10-013/N20_shortdark'],
+            ['GN-CAL20190404-10-013'],
             [58000]],
-            names=['productID', 'publisherID', 'time_bounds_lower'])
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower'])
 
         finder = Finder(state)
         assert len(finder._segment(one_row_table)) == 1
@@ -307,12 +321,14 @@ class TestFinder(unittest.TestCase):
         bad_one_row_table = astropy.table.Table([
             ['foo'],
             ['ivo://bad_publisher_id'],
+            ['GN-FOO'],
             [58000]],
-            names=['productID', 'publisherID', 'time_bounds_lower'])
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower'])
 
         finder = Finder(state)
         self._caplog.clear()
         with self._caplog.at_level(logging.WARNING):
             finder = Finder(state)
         assert len(finder._segment(bad_one_row_table)) == 1
-        assert 'Unable to parse publisherID' in self._caplog.text
+        assert 'Unable to parse observationID' in self._caplog.text
