@@ -79,7 +79,7 @@ def create_logger():
     if not root_logger.hasHandlers():
         ch = logging.StreamHandler()
         formatter = logging.Formatter(
-            '%(asctime)s-%(name)s-%(levelname)s-%(message)s')
+            '%(asctime)s %(name)s %(levelname)s %(message)s')
         ch.setFormatter(formatter)
         root_logger.addHandler(ch)
 
@@ -273,3 +273,20 @@ def finder_inttest():
     module_logger.info(
         "Test for stack GN-2007B-Q-85-24 succeeded. " +
         "Desired {} frames, found {}.".format(len(desired_frames), len(table)))
+
+
+def run_inttest():
+    """
+    Make sure reductions are working and making sense.
+    """
+
+    class Args:
+        pass
+
+    args = Args()
+    args.obsID = ['GN-2019A-FT-108-12']
+    args.proposal_id = []
+    args.verbose = True
+    args.config = None
+
+    niriPipe.niriReduce.run_main(args)

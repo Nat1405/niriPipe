@@ -1,5 +1,6 @@
 import argparse
 import niriPipe.inttests
+import niriPipe.utils.state
 import logging
 import os
 import pkg_resources
@@ -14,11 +15,14 @@ def _create_logger(verbose=False):
     else:
         root_logger.setLevel(logging.INFO)
     root_logger.propagate = True
-    ch = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s-%(name)s-%(levelname)s-%(message)s')
-    ch.setFormatter(formatter)
-    root_logger.addHandler(ch)
+    if root_logger.hasHandlers:
+        pass
+    else:
+        ch = logging.StreamHandler()
+        formatter = logging.Formatter(
+            '%(asctime)s %(name)s %(levelname)s %(message)s')
+        ch.setFormatter(formatter)
+        root_logger.addHandler(ch)
 
     return root_logger
 
@@ -100,7 +104,7 @@ def niri_reduce_main():
 
     parser_test = subparsers.add_parser('test')
     parser_test.add_argument('testName', metavar='TESTNAME', type=str, nargs=1,
-                             choices=['downloader', 'finder'],
+                             choices=['downloader', 'finder', 'run'],
                              help='Str name of test to run.')
 
     args = parser.parse_args()
@@ -109,5 +113,11 @@ def niri_reduce_main():
             niriPipe.inttests.downloader_inttest()
         elif 'finder' in args.testName:
             niriPipe.inttests.finder_inttest()
+        elif 'run' in args.testName:
+            niriPipe.inttests.run_inttest()
+        else:
+            raise ValueError("Invalid test name: {}".format(args.testName))
+    elif hasattr(args, 'obsID'):
+        run_main(args)
     else:
         parser.print_help()

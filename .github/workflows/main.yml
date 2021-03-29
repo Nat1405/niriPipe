@@ -123,3 +123,7 @@ jobs:
       - name: Container integration test of data finder.
         run: |
           conda run -n dragons niriPipe test finder
+
+      - name: Container integration test of run command.
+        run: |
+          conda run -n dragons niriPipe test run
