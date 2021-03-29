@@ -64,12 +64,12 @@
 #
 #
 # ***********************************************************************
-from astroquery.cadc import Cadc
 import os
 import logging
 import hashlib
 from pathlib import Path
 import niriPipe.utils.downloader
+from niriPipe.utils.finder import Finder
 
 
 def create_logger():
@@ -121,11 +121,7 @@ def downloader_inttest():
         "AND proposal_id = 'GN-2019A-FT-108'"
 
     try:
-        cadc = Cadc()
-        job = cadc.create_async(query)
-        job.run().wait()
-        job.raise_if_error()
-        table = job.fetch_result().to_table()
+        table = Finder._do_query(query)
     except Exception:
         logging.exception("Problem getting table from CADC.")
 
@@ -155,4 +151,121 @@ def downloader_inttest():
     else:
         raise RuntimeError(
             "Hash of downloads '{}' is different ".format(out_hash) +
-            "than the expected value of '{}'.".format(expected_hash))
+            "than the expected value of '0d6ae285dcdb60904561aca79618afef'.")
+
+
+def finder_inttest():
+    """
+    Make sure the Finder class can find NIRI data.
+    """
+
+    """
+    First test: find data for stack GN-2019A-FT-108-12.
+
+    Stack name:  GN-2019A-FT-108-12
+    Object:      N20190405S01[11-37]
+    Flats:       N20190406S00[07-26]
+    Shortdark:   N20190406S01[12-21]
+    Longdarks:   N20190406S00[42-56]
+    """
+
+    state = {
+        'config': {
+            'DATAFINDER': {
+                'min_objects': 1,
+                'min_flats': 1,
+                'min_longdarks': 1,
+                'min_shortdarks': 0
+            }
+        },
+        'current_stack': {
+            'obs_name': 'GN-2019A-FT-108-12'
+        }
+    }
+
+    module_logger.info("Starting finder inttest with stack {}".format(
+        state['current_stack']['obs_name']))
+
+    CADC_data_finder = Finder(state=state)
+    table = CADC_data_finder.run()
+    table.sort(['productID'])
+
+    module_logger.debug("Resulting table:")
+    module_logger.debug('\n'+'\n'.join(table.pformat_all()))
+
+    # Object frames
+    desired_frames = \
+        ['N20190405S01'+str(x) for x in range(11, 38)]
+    # Flats
+    desired_frames.extend(
+        ['N20190406S00'+'{:02d}'.format(x) for x in range(7, 27)])
+    # Short darks
+    desired_frames.extend(
+        ['N20190406S01'+'{:02d}'.format(x) for x in range(12, 22)])
+    # Long darks
+    desired_frames.extend(
+        ['N20190406S00'+'{:02d}'.format(x) for x in range(42, 57)])
+
+    desired_frames.sort()
+
+    for frame in desired_frames:
+        assert frame in table['productID'], "Frame {} not found.".format(frame)
+
+    module_logger.info(
+        "Test for stack GN-2019A-FT-108-12 succeeded. " +
+        "Desired {} frames, found {}.".format(len(desired_frames), len(table)))
+
+    """
+    Another test: get a stack and associated calibrations from
+    Tim Davidge's program.
+
+    Stack name:     GN-2007B-Q-85-24
+    Object:         N20080120S01[02-31]
+    Flats:          N20080120S03[24-32], N20080120S03[34-42]
+    Longdarks:      N20080121S03[83-94]
+    Shortdarks:     N20080119S00[16-25]
+    """
+
+    desired_frames = ['N20080120S01{:02d}'.format(x) for x in range(2, 32)]
+    desired_frames.extend(
+        ['N20080121S0{:03d}'.format(x) for x in range(77, 138)])
+    desired_frames.extend(
+        ['N20080120S03{:02d}'.format(x) for x in range(24, 33)])
+    desired_frames.extend(
+        ['N20080120S03{:02d}'.format(x) for x in range(34, 43)])
+    desired_frames.extend(
+        ['N20080121S03{:02d}'.format(x) for x in range(83, 95)])
+    desired_frames.extend(
+        ['N20080119S00{:02d}'.format(x) for x in range(16, 26)])
+
+    desired_frames.sort()
+
+    state = {
+        'config': {
+            'DATAFINDER': {
+                'min_objects': 1,
+                'min_flats': 1,
+                'min_longdarks': 1,
+                'min_shortdarks': 0
+            }
+        },
+        'current_stack': {
+            'obs_name': 'GN-2007B-Q-85-24'
+        }
+    }
+
+    module_logger.info("Starting finder inttest with stack {}".format(
+        state['current_stack']['obs_name']))
+
+    CADC_data_finder = Finder(state=state)
+    table = CADC_data_finder.run()
+
+    module_logger.debug("Resulting table:")
+    module_logger.debug('\n'+'\n'.join(table.pformat_all()))
+
+    for frame in desired_frames:
+        assert frame in table['productID'], "Frame {} not found.".format(frame)
+
+    module_logger.info(
+        "Test for stack GN-2007B-Q-85-24 succeeded. " +
+        "Desired {} frames, found {}.".format(len(desired_frames), len(table)))

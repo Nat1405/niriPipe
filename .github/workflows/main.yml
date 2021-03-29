@@ -61,6 +61,7 @@ jobs:
         run: |
           conda run -n dragons pip install .
           conda run -n dragons niriPipe test downloader
+          conda run -n dragons niriPipe test finder
 
   deploy_container:
     runs-on: ubuntu-latest
@@ -118,3 +119,7 @@ jobs:
       - name: Container integration test of downloader.
         run: |
           conda run -n dragons niriPipe test downloader
+
+      - name: Container integration test of data finder.
+        run: |
+          conda run -n dragons niriPipe test finder

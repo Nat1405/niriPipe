@@ -25,12 +25,14 @@ def niri_reduce_main():
 
     parser_test = subparsers.add_parser('test')
     parser_test.add_argument('testName', metavar='TESTNAME', type=str, nargs=1,
-                             choices=['downloader'],
+                             choices=['downloader', 'finder'],
                              help='Str name of test to run.')
 
     args = parser.parse_args()
     if hasattr(args, 'testName'):
         if 'downloader' in args.testName:
             niriPipe.inttests.downloader_inttest()
+        elif 'finder' in args.testName:
+            niriPipe.inttests.finder_inttest()
     else:
         parser.print_help()
