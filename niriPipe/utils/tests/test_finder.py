@@ -89,7 +89,8 @@ def get_state(
         min_flats=1,
         min_longdarks=1,
         min_shortdarks=1,
-        stack_metadata=None
+        stack_metadata=None,
+        max_tries=30
         ):
     """
     Return appliation state dictionary.
@@ -101,7 +102,8 @@ def get_state(
                     'min_objects': min_objects,
                     'min_flats': min_flats,
                     'min_longdarks': min_longdarks,
-                    'min_shortdarks': min_shortdarks
+                    'min_shortdarks': min_shortdarks,
+                    'max_tries': max_tries
                 }
             },
             'current_stack': {
@@ -279,6 +281,22 @@ class TestFinder(unittest.TestCase):
             with pytest.raises(RuntimeError) as exc_info:
                 finder._find_frames('fake_query', 'object')
         assert 'Required 3 object' in str(exc_info.value)
+
+    @patch('niriPipe.utils.finder.Finder._do_query', raise_exception)
+    def test_do_query_exceed_retries(self):
+        """
+        ... But shouldn't retry forever.
+        """
+        self._caplog.clear()
+
+        state = get_state()
+        finder = Finder(state)
+        with self._caplog.at_level(logging.WARNING):
+            with pytest.raises(RuntimeError):
+                finder._find_frames('fake_query', 'object')
+
+        assert 'attempt 2' in self._caplog.text
+        assert 'object query failed.' in self._caplog.text
 
     def test_segmentation(self):
         """

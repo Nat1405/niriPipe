@@ -261,7 +261,7 @@ class Finder:
         self.logger.debug("{} query: \n{}".format(frame_type, query))
         key = 'min_{}s'.format(frame_type)
         try:
-            table = Finder._do_query(query)
+            table = self._do_query_retry_wrapper(query, 1)
         except Exception as e:
             if int(self.state['config']['DATAFINDER'][key]):
                 logging.critical("{} query failed.".format(frame_type))
@@ -280,6 +280,20 @@ class Finder:
                 len(table)))
         self.logger.info("Found {} {} frames.".format(len(table), frame_type))
         return table
+
+    def _do_query_retry_wrapper(self, query, n_tries):
+        """
+        Recursive wrapper to retry failed queries.
+        """
+        if n_tries > int(self.state['config']['DATAFINDER']['max_tries']):
+            raise RuntimeError("Max retries exceeded!")
+        else:
+            try:
+                return Finder._do_query(query)
+            except Exception:
+                self.logger.warning("Retrying query; attempt {}.".format(
+                    n_tries))
+                self._do_query_retry_wrapper(query, n_tries+1)
 
     @staticmethod
     def _do_query(query):  # pragma: no cover
