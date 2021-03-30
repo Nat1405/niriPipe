@@ -185,10 +185,8 @@ class Finder:
         """
         flat_query = self.query_prefix + \
             "AND Observation.type = 'FLAT' " + \
-            "AND Plane.time_bounds_lower >= '{:.4f}' ".format(
-                self.state['current_stack']['mjd_date'] - 2) + \
-            "AND Plane.time_bounds_lower <= '{:.4f}' ".format(
-                self.state['current_stack']['mjd_date'] + 2) + \
+            "AND Observation.proposal_id = '{}' ".format(
+                self.state['current_stack']['proposal_id']) + \
             "AND Plane.energy_bandpassName = '{}' ".format(
                 self.state['current_stack']['filter']) + \
             self.query_suffix

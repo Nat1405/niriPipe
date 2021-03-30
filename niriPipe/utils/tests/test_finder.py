@@ -239,7 +239,10 @@ class TestFinder(unittest.TestCase):
         """
         self._caplog.clear()
 
-        state = get_state(stack_metadata={'mjd_date': 10000, 'filter': 'J'})
+        state = get_state(stack_metadata={
+            'mjd_date': 10000,
+            'filter': 'J',
+            'proposal_id': 'GN-XXXXX-X-X'})
 
         finder = Finder(state)
         with self._caplog.at_level(logging.WARNING):
