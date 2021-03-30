@@ -126,4 +126,4 @@ jobs:
 
       - name: Container integration test of run command.
         run: |
-          conda run -n dragons niriPipe test run
+          rm -r rawData && conda run -n dragons niriPipe test run

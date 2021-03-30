@@ -81,7 +81,7 @@ def run_main(args):
         module_logger.info(
             "Output stack found: {}".format(glob.glob("*_stack.fits")[0]))
     else:
-        raise RuntimeError("Output stack not found.")
+        module_logger.warning("Output stack not found.")
 
     module_logger.info("Pipeline finished!")
 
