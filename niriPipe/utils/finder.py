@@ -85,7 +85,7 @@ class Finder:
         try:
             self._log_basic_constraints()
         except KeyError as e:
-            logging.critical(
+            self.logger.critical(
                 "Insufficient constraints provided; " +
                 "is the config file complete?")
             raise e
@@ -262,7 +262,7 @@ class Finder:
             table = self._do_query_retry_wrapper(query, 1)
         except Exception as e:
             if int(self.state['config']['DATAFINDER'][key]):
-                logging.critical("{} query failed.".format(frame_type))
+                self.logger.critical("{} query failed.".format(frame_type))
                 raise e
             else:
                 self.logger.debug("Found no frames; returning empty table.")

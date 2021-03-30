@@ -8,23 +8,23 @@ import json
 import glob
 
 
-def _create_logger(verbose=False):
-    root_logger = logging.getLogger('niriPipe')
-    if verbose:
-        root_logger.setLevel(logging.DEBUG)
-    else:
-        root_logger.setLevel(logging.INFO)
-    root_logger.propagate = True
-    if root_logger.hasHandlers:
-        pass
-    else:
-        ch = logging.StreamHandler()
-        formatter = logging.Formatter(
-            '%(asctime)s %(name)s %(levelname)s %(message)s')
-        ch.setFormatter(formatter)
-        root_logger.addHandler(ch)
+def _create_logger():
+    root_logger = logging.getLogger(__name__.split('.')[0])
+    root_logger.propagate = False
+    root_logger.setLevel(logging.INFO)
 
-    return root_logger
+    ch = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s %(name)s %(levelname)s %(message)s')
+    ch.setFormatter(formatter)
+    root_logger.addHandler(ch)
+
+    module_logger = logging.getLogger(__name__)
+
+    return module_logger
+
+
+module_logger = _create_logger()
 
 
 def run_main(args):
@@ -33,11 +33,10 @@ def run_main(args):
     """
 
     if hasattr(args, 'verbose'):
-        root_logger = _create_logger(verbose=True)
-    else:
-        root_logger = _create_logger()
+        # Set niriPipe root logging level to DEBUG
+        logging.getLogger(__name__.split('.')[0]).setLevel(logging.DEBUG)
 
-    root_logger.info("Starting NIRI pipeline.")
+    module_logger.info("Starting NIRI pipeline.")
 
     # Get initial state
     if hasattr(args, 'config') and args.config:
@@ -50,11 +49,11 @@ def run_main(args):
         obs_name=args.obsID,
         configfile=configfile
     )
-    root_logger.debug("Initial state:")
-    root_logger.debug(json.dumps(state, sort_keys=True, indent=4))
+    module_logger.debug("Initial state:")
+    module_logger.debug(json.dumps(state, sort_keys=True, indent=4))
 
     # Create and run finder
-    root_logger.info(
+    module_logger.info(
         "Starting data finder for observation {}".format(
             state['current_stack']['obs_name']))
     try:
@@ -63,11 +62,11 @@ def run_main(args):
     except Exception as e:
         logging.critical("Datafinder failed!")
         raise e
-    root_logger.info(
+    module_logger.info(
         "Finder succeeded; found {} files.".format(len(data_table)))
 
     # Run downloader on found files
-    root_logger.info("Starting downloader.")
+    module_logger.info("Starting downloader.")
     try:
         downloader = \
             niriPipe.utils.downloader.Downloader(state=state, table=data_table)
@@ -75,16 +74,16 @@ def run_main(args):
     except Exception as e:
         logging.critical("Downloader failed!")
         raise e
-    root_logger.info("Downloader succeeded.")
+    module_logger.info("Downloader succeeded.")
 
     # Check to see if a "stack" was created.
     if glob.glob("*_stack.fits"):
-        root_logger.info(
+        module_logger.info(
             "Output stack found: {}".format(glob.glob("*_stack.fits")[0]))
     else:
         raise RuntimeError("Output stack not found.")
 
-    root_logger.info("Pipeline finished!")
+    module_logger.info("Pipeline finished!")
 
 
 def niri_reduce_main():

@@ -73,21 +73,19 @@ from niriPipe.utils.finder import Finder
 
 
 def create_logger():
-    root_logger = logging.getLogger('niriPipe')
+    root_logger = logging.getLogger(__name__.split('.')[0])
     root_logger.setLevel(logging.DEBUG)
-    root_logger.propagate = True
-    if not root_logger.hasHandlers():
+
+    module_logger = logging.getLogger(__name__)
+    module_logger.setLevel(logging.DEBUG)
+    if not module_logger.hasHandlers():
         ch = logging.StreamHandler()
         formatter = logging.Formatter(
             '%(asctime)s %(name)s %(levelname)s %(message)s')
         ch.setFormatter(formatter)
-        root_logger.addHandler(ch)
+        module_logger.addHandler(ch)
 
-    module_logger = logging.getLogger('niriPipe.inttests')
     return module_logger
-
-
-module_logger = create_logger()
 
 
 def md5_of_dir(directory):
@@ -111,6 +109,8 @@ def downloader_inttest():
 
 
     """
+    module_logger = create_logger()
+
     query = \
         "SELECT observationID, publisherID, productID " +\
         "FROM caom2.Observation AS o JOIN caom2.Plane AS p " +\
@@ -168,6 +168,7 @@ def finder_inttest():
     Shortdark:   N20190406S01[12-21]
     Longdarks:   N20190406S00[42-56]
     """
+    module_logger = create_logger()
 
     state = {
         'config': {

@@ -101,7 +101,8 @@ class Downloader:
     def __init__(self, table, state):
         self.table = table
         self.state = state
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger('{}.{}'.format(
+            self.__module__, self.__class__.__name__))
         self.download_path = os.path.join(
             self.state['current_working_directory'],
             self.state['config']['DATARETRIEVAL']['raw_data_path']
