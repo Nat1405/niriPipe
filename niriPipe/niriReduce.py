@@ -1,6 +1,7 @@
 import argparse
 import niriPipe.inttests
 import niriPipe.utils.state
+import niriPipe.utils.customLogger
 import logging
 import os
 import pkg_resources
@@ -8,33 +9,16 @@ import json
 import glob
 
 
-def _create_logger():
-    root_logger = logging.getLogger(__name__.split('.')[0])
-    root_logger.propagate = False
-    root_logger.setLevel(logging.INFO)
-
-    ch = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s %(name)s %(levelname)s %(message)s')
-    ch.setFormatter(formatter)
-    root_logger.addHandler(ch)
-
-    module_logger = logging.getLogger(__name__)
-
-    return module_logger
-
-
-module_logger = _create_logger()
+module_logger = niriPipe.utils.customLogger.get_logger(__name__)
 
 
 def run_main(args):
     """
     Run a NIRI pipeline.
     """
-
     if hasattr(args, 'verbose'):
         # Set niriPipe root logging level to DEBUG
-        logging.getLogger(__name__.split('.')[0]).setLevel(logging.DEBUG)
+        niriPipe.utils.customLogger.set_level(logging.DEBUG)
 
     module_logger.info("Starting NIRI pipeline.")
 
@@ -60,7 +44,7 @@ def run_main(args):
         finder = niriPipe.utils.finder.Finder(state)
         data_table = finder.run()
     except Exception as e:
-        logging.critical("Datafinder failed!")
+        module_logger.critical("Datafinder failed!")
         raise e
     module_logger.info(
         "Finder succeeded; found {} files.".format(len(data_table)))
@@ -72,7 +56,7 @@ def run_main(args):
             niriPipe.utils.downloader.Downloader(state=state, table=data_table)
         downloader.download_query_cadc()
     except Exception as e:
-        logging.critical("Downloader failed!")
+        module_logger.critical("Downloader failed!")
         raise e
     module_logger.info("Downloader succeeded.")
 

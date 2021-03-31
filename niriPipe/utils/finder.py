@@ -64,13 +64,13 @@
 #
 #
 # ***********************************************************************
-import logging
 import astropy.table
 from astroquery.cadc import Cadc
 import re
 import io
 from cadcutils import net
 from cadcdata import CadcDataClient
+import niriPipe.utils.customLogger
 
 
 class Finder:
@@ -80,8 +80,9 @@ class Finder:
 
     def __init__(self, state):
         self.state = state
-        self.logger = logging.getLogger('{}.{}'.format(
-            self.__module__, self.__class__.__name__))
+        self.logger = niriPipe.utils.customLogger.get_logger(
+            '{}.{}'.format(
+                self.__module__, self.__class__.__name__))
         try:
             self._log_basic_constraints()
         except KeyError as e:

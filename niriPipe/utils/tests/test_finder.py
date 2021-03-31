@@ -72,9 +72,14 @@ import astropy.table
 import os
 import logging
 from niriPipe.utils.finder import Finder
+import niriPipe.utils.customLogger
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 TESTDATA_DIR = os.path.join(THIS_DIR, 'data')
+
+# Need to enable propagation for log capturing to work
+niriPipe.utils.customLogger.enable_propagation()
+niriPipe.utils.customLogger.set_level(logging.DEBUG)
 
 
 def raise_exception():

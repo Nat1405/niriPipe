@@ -66,7 +66,6 @@
 # ***********************************************************************
 from astroquery.cadc import Cadc
 import os
-import logging
 import requests
 import re
 import hashlib
@@ -76,6 +75,7 @@ import glob
 import datetime
 import astrodata
 import gemini_instruments  # noqa: F401
+import niriPipe.utils.customLogger
 
 
 class Downloader:
@@ -101,8 +101,9 @@ class Downloader:
     def __init__(self, table, state):
         self.table = table
         self.state = state
-        self.logger = logging.getLogger('{}.{}'.format(
-            self.__module__, self.__class__.__name__))
+        self.logger = niriPipe.utils.customLogger.get_logger(
+            '{}.{}'.format(
+                self.__module__, self.__class__.__name__))
         self.download_path = os.path.join(
             self.state['current_working_directory'],
             self.state['config']['DATARETRIEVAL']['raw_data_path']

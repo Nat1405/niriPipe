@@ -70,22 +70,11 @@ import hashlib
 from pathlib import Path
 import niriPipe.utils.downloader
 from niriPipe.utils.finder import Finder
+import niriPipe.utils.customLogger
 
 
-def create_logger():
-    root_logger = logging.getLogger(__name__.split('.')[0])
-    root_logger.setLevel(logging.DEBUG)
-
-    module_logger = logging.getLogger(__name__)
-    module_logger.setLevel(logging.DEBUG)
-    if not module_logger.hasHandlers():
-        ch = logging.StreamHandler()
-        formatter = logging.Formatter(
-            '%(asctime)s %(name)s %(levelname)s %(message)s')
-        ch.setFormatter(formatter)
-        module_logger.addHandler(ch)
-
-    return module_logger
+module_logger = niriPipe.utils.customLogger.get_logger(__name__)
+niriPipe.utils.customLogger.set_level(logging.DEBUG)
 
 
 def md5_of_dir(directory):
@@ -109,8 +98,6 @@ def downloader_inttest():
 
 
     """
-    module_logger = create_logger()
-
     query = \
         "SELECT observationID, publisherID, productID " +\
         "FROM caom2.Observation AS o JOIN caom2.Plane AS p " +\
@@ -168,8 +155,6 @@ def finder_inttest():
     Shortdark:   N20190406S01[12-21]
     Longdarks:   N20190406S00[42-56]
     """
-    module_logger = create_logger()
-
     state = {
         'config': {
             'DATAFINDER': {

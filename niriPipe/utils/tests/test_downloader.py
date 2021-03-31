@@ -74,6 +74,7 @@ import shutil
 import logging
 import datetime
 from niriPipe.utils.downloader import Downloader
+import niriPipe.utils.customLogger
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 TESTDATA_DIR = os.path.join(THIS_DIR, 'data')
@@ -82,6 +83,11 @@ NETWORK_TESTS = True
 
 SKIP_STRING = 'Skipping Gemini metadata check'
 BAD_DATE_STRING = 'Unable to get date'
+
+
+# Need to enable propagation for log capturing to work
+niriPipe.utils.customLogger.enable_propagation()
+niriPipe.utils.customLogger.set_level(logging.DEBUG)
 
 
 class MockResponse:
@@ -108,7 +114,7 @@ def get_state():
         }
 
 
-def throw_exception():
+def throw_exception(*args, **kwargs):
     raise IOError
 
 
