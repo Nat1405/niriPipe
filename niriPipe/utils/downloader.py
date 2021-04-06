@@ -69,7 +69,6 @@ import os
 import requests
 import re
 import hashlib
-import tempfile
 import shutil
 import glob
 import datetime
@@ -140,11 +139,11 @@ class Downloader:
                 filename = self._get_file(url)
                 self.logger.info("Downloaded {}".format(filename))
             except Exception as e:
-                self.logger.warning(
+                self.logger.error(
                     "Frame {} failed to download.".format(pid),
                     exc_info=True
                 )
-                continue
+                raise e
         self._check_for_MD_files()
 
     def _get_file(self, url):

@@ -70,7 +70,12 @@ import hashlib
 from pathlib import Path
 import niriPipe.utils.downloader
 from niriPipe.utils.finder import Finder
+from niriPipe.utils.reducer import Reducer
 import niriPipe.utils.customLogger
+from niriPipe.utils.state import get_initial_state
+import astropy.table
+import shutil
+import json
 
 
 module_logger = niriPipe.utils.customLogger.get_logger(__name__)
@@ -271,8 +276,112 @@ def run_inttest():
 
     args = Args()
     args.obsID = ['GN-2019A-FT-108-12']
+    args.intent = ['science']
     args.proposal_id = []
     args.verbose = True
     args.config = None
 
     niriPipe.niriReduce.run_main(args)
+
+
+def run_reduce_inttest():
+    """
+    Do a test data reduction (subset of GN-2019A-FT-108-12)
+
+    If cached data isn't found, use Downloader to get data.
+    """
+    module_logger.info("Starting reduce test.")
+    state = get_initial_state(
+        obs_name=['GN-2019A-FT-108-12'], intent=['science'])
+    state['config']['DATAFINDER']['min_shortdarks'] = 1
+
+    module_logger.debug("Initial state:")
+    module_logger.debug(json.dumps(state, sort_keys=True, indent=4))
+
+    # Construct astropy table of required files
+    table = astropy.table.Table([
+        [
+            # Object frames
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-12-001/N20190405S0111',
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-12-002/N20190405S0112',
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-12-003/N20190405S0113',
+            # Flat frames
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-16-001/N20190406S0007',
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-16-002/N20190406S0008',
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-16-011/N20190406S0017',
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-16-012/N20190406S0018',
+            # Longdark frames
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-16-036/N20190406S0042',
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-16-037/N20190406S0043',
+            # Shortdark frames
+            'ivo://cadc.nrc.ca/GEMINI?GN-CAL20190406-8-001/N20190406S0112',
+            'ivo://cadc.nrc.ca/GEMINI?GN-CAL20190406-8-002/N20190406S0113',
+        ],
+        [
+            'N20190405S0111',
+            'N20190405S0112',
+            'N20190405S0113',
+
+            'N20190406S0007',
+            'N20190406S0008',
+            'N20190406S0017',
+            'N20190406S0018',
+
+            'N20190406S0042',
+            'N20190406S0043',
+
+            'N20190406S0112',
+            'N20190406S0113'
+        ],
+        [
+            'object',
+            'object',
+            'object',
+
+            'flat',
+            'flat',
+            'flat',
+            'flat',
+
+            'longdark',
+            'longdark',
+
+            'shortdark',
+            'shortdark'
+        ]
+        ],
+        names=['publisherID', 'productID', 'niriPipe_type']
+    )
+
+    module_logger.info("Input table is:")
+    module_logger.info("\n"+str(table))
+
+    # Check if all the productID files exist, and if not,
+    # redo the download.
+    download_dir = os.path.join(
+        os.getcwd(),
+        state['config']['DATARETRIEVAL']['raw_data_path']
+    )
+
+    def checkExists(file):
+        return os.path.exists(os.path.join(
+            download_dir,
+            file,
+            '.fits'
+        ))
+
+    if not all(map(checkExists, table['productID'])):
+        module_logger.info("Insufficient files found; invoking downloader...")
+        if os.path.exists(download_dir):
+            shutil.rmtree(download_dir)
+        d = niriPipe.utils.downloader.Downloader(state=state, table=table)
+        d.download_query_cadc()
+
+    # Now do the actual reduction.
+    module_logger.info("Invoking reducer...")
+    reducer = Reducer(state=state, table=table)
+    reducer.run()
+
+    module_logger.info("Reducer test succeeded!")
+
+

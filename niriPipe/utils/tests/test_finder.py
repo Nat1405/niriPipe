@@ -359,3 +359,35 @@ class TestFinder(unittest.TestCase):
             finder = Finder(state)
         assert len(finder._segment(bad_one_row_table)) == 1
         assert 'Unable to parse observationID' in self._caplog.text
+
+    def test_mark_as(self):
+        """
+        _mark_as adds an extra column to tables to identify frames
+        as object, flat, longdark, or shortdark.
+
+        The possible flows are:
+            - empty table provided; add column but no rows and return table.
+            - n-row table; add column and rows with type.
+        """
+        state = get_state()
+        finder = Finder(state)
+        # Empty table test
+        empty_table = astropy.table.Table(
+            [[], [], [], []],
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower'])
+        out_table = finder._mark_as('flat', empty_table)
+        assert 'niriPipe_type' in out_table.columns
+
+        two_row_table = astropy.table.Table([
+            ['foo', 'bar'],
+            ['ivo://bad_publisher_id', 'bad_id_2'],
+            ['GN-FOO', 'GN-BAR'],
+            [58000, 10000]],
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower'])
+
+        two_row_table = finder._mark_as('object', two_row_table)
+        assert two_row_table[1]['niriPipe_type'] == 'object'
+
+

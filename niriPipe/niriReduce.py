@@ -4,7 +4,6 @@ import niriPipe.utils.state
 import niriPipe.utils.customLogger
 import logging
 import os
-import pkg_resources
 import json
 import glob
 
@@ -24,13 +23,12 @@ def run_main(args):
 
     # Get initial state
     if hasattr(args, 'config') and args.config:
-        configfile = args.config[0]
+        configfile = args.config
     else:
-        configfile = pkg_resources.resource_filename(
-            'niriPipe',
-            os.path.join('cfg', 'default_config.cfg'))
+        configfile = None
     state = niriPipe.utils.state.get_initial_state(
         obs_name=args.obsID,
+        intent=args.intent,
         configfile=configfile
     )
     module_logger.debug("Initial state:")
@@ -60,6 +58,16 @@ def run_main(args):
         raise e
     module_logger.info("Downloader succeeded.")
 
+    # Setup and run Gemini DRAGONS.
+    module_logger.info("Starting reducer.")
+    try:
+        reducer = niriPipe.utils.reducer.Reducer(state=state, table=data_table)
+        reducer.run()
+    except Exception as e:
+        logging.critical("Reducer failed!")
+        raise e
+    module_logger.info("Reducer succeeded.")
+
     # Check to see if a "stack" was created.
     if glob.glob("*_stack.fits"):
         module_logger.info(
@@ -80,6 +88,9 @@ def niri_reduce_main():
     parser_run = subparsers.add_parser('run')
     parser_run.add_argument('obsID', metavar='OBSID', type=str, nargs=1,
                             help='an observation ID to process')
+    parser_run.add_argument('intent', metavar='INTENT', type=str, nargs=1,
+                            choices=['science', 'calibration'],
+                            help='Type of stack (science or calibration).')
     parser_run.add_argument('-c', '--config', type=str,
                             nargs=1, help='User provided config file.')
     parser_run.add_argument('-v', '--verbose', action='store_true',
@@ -87,7 +98,7 @@ def niri_reduce_main():
 
     parser_test = subparsers.add_parser('test')
     parser_test.add_argument('testName', metavar='TESTNAME', type=str, nargs=1,
-                             choices=['downloader', 'finder', 'run'],
+                             choices=['downloader', 'finder', 'run', 'reduce'],
                              help='Str name of test to run.')
 
     args = parser.parse_args()
@@ -98,6 +109,8 @@ def niri_reduce_main():
             niriPipe.inttests.finder_inttest()
         elif 'run' in args.testName:
             niriPipe.inttests.run_inttest()
+        elif 'reduce' in args.testName:
+            niriPipe.inttests.run_reduce_inttest()
         else:
             raise ValueError("Invalid test name: {}".format(args.testName))
     elif hasattr(args, 'obsID'):

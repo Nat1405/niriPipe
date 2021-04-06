@@ -90,10 +90,14 @@ class Finder:
                 "Insufficient constraints provided; " +
                 "is the config file complete?")
             raise e
+        # Every table used in processing should have these columns.
+        self.min_columns = [
+            'publisherID', 'productID', 'energy_bandpassName',
+            'time_bounds_lower', 'time_exposure', 'type', 'intent',
+            'proposal_id', 'observationID'
+        ]
         self.query_prefix = \
-            "SELECT publisherID, productID, energy_bandpassName, " + \
-            "time_bounds_lower, time_exposure, type, intent, " + \
-            "observationID, proposal_id " + \
+            "SELECT " + ', '.join(self.min_columns) + " " + \
             "FROM caom2.Plane AS Plane " + \
             "JOIN caom2.Observation AS Observation " + \
             "ON Plane.obsID = Observation.obsID " + \
@@ -115,10 +119,10 @@ class Finder:
         (1 second darks used to generate a bad pixel mask).
         """
         return astropy.table.vstack([
-            self._find_objects(),
-            self._segment(self._find_flats()),
-            self._segment(self._find_longdarks()),
-            self._segment(self._find_shortdarks())
+            self._mark_as('object', self._find_objects()),
+            self._mark_as('flat', self._segment(self._find_flats())),
+            self._mark_as('longdark', self._segment(self._find_longdarks())),
+            self._mark_as('shortdark', self._segment(self._find_shortdarks()))
         ])
 
     def _log_basic_constraints(self):
@@ -267,9 +271,7 @@ class Finder:
                 raise e
             else:
                 self.logger.debug("Found no frames; returning empty table.")
-                return astropy.table.Table(names=(
-                    'publisherID', 'productID', 'time_bounds_lower',
-                    'observationID'))
+                return astropy.table.Table(names=self.min_columns)
 
         if len(table) < \
                 int(self.state['config']['DATAFINDER'][key]):
@@ -394,3 +396,18 @@ class Finder:
         self.logger.debug(
             "Segmentation finished with {} frames.".format(len(out_table)))
         return out_table
+
+    def _mark_as(self, in_type, table):
+        """
+        Add a column (niriPipe_type) to all entries of table.
+
+        Used to identify flats, object frames, darks, etc in
+        downstream processing (keeps logic to identify which
+        frames are which in Finder).
+
+        """
+        self.logger.debug(
+            "Marking rows in table as {} frames.".format(in_type))
+        table['niriPipe_type'] = [in_type for i in range(len(table))]
+
+        return table
