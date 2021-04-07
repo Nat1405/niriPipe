@@ -36,34 +36,41 @@ jobs:
         with:
           files: coverage.xml
 
-  upload_to_test_pypi:
+  fast_integration_test:
     runs-on: ubuntu-latest
-    needs: unit_test
+    defaults:
+      run:
+        shell: bash -l {0}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
-      - name: Setup python build
-        run: |
-          python3 -m pip install build --user
-
-      - name: Build a binary wheel and a source tarball
-        run: |
-          python3 -m build --sdist --wheel --outdir dist/ .
-
-      - name: Publish distribution 📦 to Test PyPI
-        uses: pypa/gh-action-pypi-publish@master
+      - name: Setup conda.
+        uses: conda-incubator/setup-miniconda@v2
         with:
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-          repository_url: https://test.pypi.org/legacy/
+          python-version: 3.6
+
+      - name: Create DRAGONS conda environment.
+        run: |
+          conda config --add channels http://ssb.stsci.edu/astroconda
+          conda config --add channels http://astroconda.gemini.edu/public
+          conda create -n dragons python=3.6 dragons stsci
+          conda info
+
+      - name: Run integration tests.
+        run: |
+          conda run -n dragons pip install .
+          conda run -n dragons niriPipe test downloader
+          conda run -n dragons niriPipe test finder
 
   deploy_container:
     runs-on: ubuntu-latest
-    needs: [unit_test, upload_to_test_pypi]
+    needs: [unit_test, fast_integration_test]
     steps:
-      - name: Get current datetime
-        id: date
-        run: echo "::set-output name=date::$(date +%Y%m%d-%H%M%S)"
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          path: niriPipe
 
       - name: Checkout Dockerfile repo
         uses: actions/checkout@v2
@@ -71,6 +78,10 @@ jobs:
           repository: ijiraq/gemini_processing
           ref: niri
           path: gemini_processing
+
+      - name: Copy latest build to dockerfile location
+        run: |
+          cp -r niriPipe gemini_processing/niri/dockerfiles/arcade-niri/
 
       - name: Set up Docker
         uses: docker/setup-buildx-action@v1
@@ -103,4 +114,12 @@ jobs:
     steps:
       - name: Print niriPipe help in container
         run: |
-          niriPipe --help
+          conda run -n dragons niriPipe --help
+
+      - name: Container integration test of downloader.
+        run: |
+          conda run -n dragons niriPipe test downloader
+
+      - name: Container integration test of data finder.
+        run: |
+          conda run -n dragons niriPipe test finder
