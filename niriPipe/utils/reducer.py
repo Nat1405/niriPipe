@@ -66,12 +66,11 @@
 # ***********************************************************************
 import logging
 import astrodata  # noqa: F401
-from recipe_system.reduction.coreReduce import Reduce
+import recipe_system.reduction.coreReduce
 from recipe_system import cal_service
-from gempy.utils import logutils
+import gempy.utils
 import os
 from pathlib import Path
-from functools import partial
 
 
 def raiseIfError(msg):
@@ -127,6 +126,10 @@ class Reducer:
             'processed_stack': None
         }
 
+        # Catch case of empty table here...
+        if len(self.table) == 0:
+            return self.products
+
         self._make_dark()
         self._make_bpm()
         self._make_flat()
@@ -156,7 +159,7 @@ class Reducer:
 
         logfile = self.state['config']['REDUCTION']['logfile']
         self.logger.debug("DRAGONS log file is {}".format(logfile))
-        logutils.config(file_name=logfile)
+        gempy.utils.logutils.config(file_name=logfile)
 
         self.logger.debug("Starting DRAGONS calservice and caldb.")
         self.caldb = cal_service.CalibrationService()
@@ -247,19 +250,28 @@ class Reducer:
                             for x in input_frames['productID']
         ]
 
-        dragons_reduce = Reduce()
+        dragons_reduce = recipe_system.reduction.coreReduce.Reduce()
         dragons_reduce.files.extend(paths)
+
         if recipename:
+            self.logger.debug("Using provided recipe: {}".format(recipename))
             dragons_reduce.recipename = recipename
-        if frame_type == 'object':
-            if self.products['processed_bpm']:
-                self.logger.debug("Using the detected custom bad pixel mask.")
-                dragons_reduce.uparms = \
-                    [('addDQ:user_bpm', self.products['processed_bpm'])]
-            # Standard star stacks need dark correction turned off.
-            if self.state['current_stack']['intent'] == 'calibration':
-                dragons_reduce.uparms.append(('darkCorrect:do_dark', False))
+
+        # Use custom bad pixel mask if provided
+        if self.products['processed_bpm']:
+            self.logger.debug("Using provided bad pixel mask: {}".format(
+                    self.products['processed_bpm']))
+            dragons_reduce.uparms = \
+                [('addDQ:user_bpm', self.products['processed_bpm'])]
+
+        # Dark correction can be optional
+        if int(self.state['config']['DATAFINDER']['min_longdarks']) == 0:
+            self.logger.debug("Turning off dark correction.")
+            dragons_reduce.uparms.append(('darkCorrect:do_dark', False))
+
+        # Start up DRAGONS
         dragons_reduce.runr()
+
         if add_to_cal_db:
             self.caldb.add_cal(dragons_reduce.output_filenames[0])
 

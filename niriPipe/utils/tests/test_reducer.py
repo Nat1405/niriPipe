@@ -75,6 +75,7 @@ import logging
 from niriPipe.utils.reducer import Reducer
 from niriPipe.utils.state import get_initial_state
 import niriPipe.utils.customLogger
+import shutil
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 TESTDATA_DIR = os.path.join(THIS_DIR, 'data')
@@ -84,6 +85,81 @@ TESTDATA_DIR = os.path.join(THIS_DIR, 'data')
 # check DEBUG log messages in pytests.
 niriPipe.utils.customLogger.enable_propagation()
 niriPipe.utils.customLogger.set_level(logging.DEBUG)
+
+
+def get_state_table(
+        intent=['science'],
+        min_objects=None,
+        min_flats=None,
+        min_longdarks=None,
+        min_shortdarks=None,
+        populated_table=True):
+    """
+    The Reducer takes state and an input table of files as input.
+
+    State should be loaded from the default config file, with
+    some state set specifically for each test.
+
+    The table should have appropriate columns and be either empty
+    or populated with the minumum number of rows.
+    """
+    state = get_initial_state(
+            obs_name=['GN-FOO-BAR'],
+            intent=intent,
+            configfile=None)
+
+    # Override default configuration here
+    if min_objects:
+        state['config']['DATAFINDER']['min_objects'] = min_objects
+    if min_flats:
+        state['config']['DATAFINDER']['min_flats'] = min_flats
+    if min_longdarks:
+        state['config']['DATAFINDER']['min_longdarks'] = min_longdarks
+    if min_shortdarks:
+        state['config']['DATAFINDER']['min_shortdarks'] = min_shortdarks
+
+    if populated_table:
+        table = astropy.table.Table([[
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-12-001/N20190405S0111',
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-16-001/N20190406S0007',
+            'ivo://cadc.nrc.ca/GEMINI?GN-2019A-FT-108-16-036/N20190406S0042',
+            'ivo://cadc.nrc.ca/GEMINI?GN-CAL20190406-8-001/N20190406S0112', ],
+            [
+                'N20190405S0111',
+                'N20190406S0007',
+                'N20190406S0042',
+                'N20190406S0112',
+            ],
+            [
+                'object',
+                'flat',
+                'longdark',
+                'shortdark'
+            ]],
+            names=['publisherID', 'productID', 'niriPipe_type']
+        )
+    else:
+        table = astropy.table.Table([[]], names=['niriPipe_type'])
+
+    return state, table
+
+
+def raise_exception():
+    raise RuntimeError("Fake exception...")
+
+
+class MockReduce:
+    """
+    Mocks the main dragons REDUCE class
+    (recipe_system.reduction.coreReduce.Reduce)
+    """
+    def __init__(self):
+        self.files = []
+        self.uparms = []
+        self.recipename = ""
+
+    def runr(self):
+        self.output_filenames = ['fake_file.fits']
 
 
 class TestReducer(unittest.TestCase):
@@ -112,7 +188,10 @@ class TestReducer(unittest.TestCase):
             - Have written to config file
             - Have created caldb
         """
-        state = get_initial_state(obs_name=['GN-FOO-BAR'], intent=['science'])
+        state, _ = get_state_table()
+
+        if os.path.exists(os.path.join(str(Path.home()), '.geminidr')):
+            shutil.rmtree(os.path.join(str(Path.home()), '.geminidr'))
 
         os.mkdir(os.path.join(
                 os.getcwd(),
@@ -131,3 +210,167 @@ class TestReducer(unittest.TestCase):
                 state['config']['DATARETRIEVAL']['raw_data_path'],
                 'cal_manager.db'
             )).st_size > 0
+
+    def test_init_with_no_reduction(self):
+        """
+        Should be able to not make any products.
+        """
+        state, table = get_state_table(
+            min_objects='0',
+            min_flats='0',
+            min_longdarks='0',
+            min_shortdarks='0',
+            populated_table=False
+        )
+
+        reducer = Reducer(state=state, table=table)
+        products = reducer.run()
+
+        assert not any([
+            products['processed_dark'],
+            products['processed_bpm'],
+            products['processed_flat'],
+            products['processed_stack']
+        ])
+
+    @patch('recipe_system.reduction.coreReduce.Reduce', MockReduce)
+    def test_perfect_reduction(self):
+        """
+        Mock DRAGONS to do a perfect reduction.
+        """
+        state, table = get_state_table(
+            intent=['calibration'],
+            min_longdarks='1',
+            min_shortdarks='1'
+        )
+
+        reducer = Reducer(state=state, table=table)
+        with patch('recipe_system.cal_service.CalibrationService.add_cal'):
+            products = reducer.run()
+
+        assert all([
+            products['processed_dark'] == 'fake_file.fits',
+            products['processed_bpm'] == 'fake_file.fits',
+            products['processed_flat'] == 'fake_file.fits',
+            products['processed_stack'] == 'fake_file.fits'
+        ])
+
+    @patch('recipe_system.reduction.coreReduce.Reduce', raise_exception)
+    @patch('gempy.utils.logutils')
+    def test_reduction_exception(self, mock):
+        """
+        If the dragons reducer throws an exception, report it and exit.
+        """
+        self._caplog.clear()
+
+        state, table = get_state_table(
+            intent=['science']
+        )
+
+        reducer = Reducer(state=state, table=table)
+        with pytest.raises(RuntimeError):
+            with self._caplog.at_level(logging.DEBUG):
+                reducer.run()
+
+        assert 'Failed to make processed dark.' in self._caplog.text
+
+    """
+    Make product has four use cases along with tweakable parameters.
+
+        - Make the processed long dark.
+        - Make the processed bad pixel mask.
+        - Make the processed flat frame.
+        - Make the object stack.
+
+    The bad pixel mask might not exist, so needs to work both with and
+    without a bad pixel mask.
+
+    The dark correction needs turned off for standard star stacks.
+
+    Only the processed flat and dark should be added to the DRAGONS caldb.
+    """
+
+    def test_make_product_skip(self):
+        self._caplog.clear()
+
+        state, table = get_state_table(
+            min_objects='0'
+        )
+
+        reducer = Reducer(state=state, table=table)
+        reducer.products = {'processed_bpm': 'pretend_bpm.fits'}
+        with self._caplog.at_level(logging.DEBUG):
+            reducer._make_product(
+                frame_type='object',
+                mask=(table['niriPipe_type'] == 'object'),
+                product_name='processed_stack'
+            )
+
+        assert 'Skipping creation of processed_stack' in self._caplog.text
+
+    @patch('recipe_system.reduction.coreReduce.Reduce', MockReduce)
+    def test_make_product_recipe_name(self):
+        """
+        Should be able to pass a custom recipe name.
+        """
+        self._caplog.clear()
+
+        state, table = get_state_table()
+
+        reducer = Reducer(state=state, table=table)
+        reducer.products = {'processed_bpm': 'pretend_bpm.fits'}
+        with self._caplog.at_level(logging.DEBUG):
+            reducer._make_product(
+                frame_type='object',
+                mask=(table['niriPipe_type'] == 'object'),
+                product_name='processed_stack',
+                recipename='fake_recipe.py',
+                add_to_cal_db=False
+            )
+
+        assert 'Using provided recipe: fake_recipe.py' in self._caplog.text
+
+    @patch('recipe_system.reduction.coreReduce.Reduce', MockReduce)
+    def test_make_product_bad_pixel_mask(self):
+        """
+        Custom bad pixel mask should be provided if it exists.
+        """
+        self._caplog.clear()
+
+        state, table = get_state_table()
+
+        reducer = Reducer(state=state, table=table)
+        reducer.products = {'processed_bpm': 'pretend_bpm.fits'}
+        with self._caplog.at_level(logging.DEBUG):
+            reducer._make_product(
+                frame_type='flat',
+                mask=(table['niriPipe_type'] == 'flat'),
+                product_name='processed_flat',
+                add_to_cal_db=False
+            )
+
+        assert 'Using provided bad pixel mask: pretend_bpm.fits' in \
+            self._caplog.text
+
+    @patch('recipe_system.reduction.coreReduce.Reduce', MockReduce)
+    def test_make_product_turn_off_dark(self):
+        """
+        Dark correction should be turned off for standard star stack.
+        """
+        self._caplog.clear()
+
+        state, table = get_state_table(intent=['calibration'])
+
+        print(state['config']['DATAFINDER']['min_longdarks'])
+
+        reducer = Reducer(state=state, table=table)
+        reducer.products = {'processed_bpm': None}
+        with self._caplog.at_level(logging.DEBUG):
+            reducer._make_product(
+                frame_type='object',
+                mask=(table['niriPipe_type'] == 'object'),
+                product_name='processed_stack',
+                add_to_cal_db=False
+            )
+
+        assert 'Turning off dark correction' in self._caplog.text
