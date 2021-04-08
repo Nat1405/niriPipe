@@ -408,6 +408,11 @@ class Finder:
         """
         self.logger.debug(
             "Marking rows in table as {} frames.".format(in_type))
-        table['niriPipe_type'] = [in_type for i in range(len(table))]
+
+        niriPipe_type_column = astropy.table.Column(
+            data=[in_type for i in range(len(table))],
+            dtype=str
+        )
+        table.add_column(niriPipe_type_column, name='niriPipe_type')
 
         return table
