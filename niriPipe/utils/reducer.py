@@ -67,10 +67,9 @@
 import logging
 import astrodata  # noqa: F401
 import recipe_system.reduction.coreReduce
-from recipe_system import cal_service
+import recipe_system.utils.reduce_utils
 import gempy.utils
 import os
-from pathlib import Path
 
 
 def raiseIfError(msg):
@@ -113,18 +112,18 @@ class Reducer:
         self.logger = logging.getLogger('{}.{}'.format(
             self.__module__, self.__class__.__name__))
 
-    def run(self):
-        """
-        Main entrypoint to the reducer.
-        """
-        self._init_dragons()
-
         self.products = {
             'processed_dark': None,
             'processed_bpm': None,
             'processed_flat': None,
             'processed_stack': None
         }
+
+    def run(self):
+        """
+        Main entrypoint to the reducer.
+        """
+        self._init_dragons()
 
         # Catch case of empty table here...
         if len(self.table) == 0:
@@ -142,30 +141,12 @@ class Reducer:
         """
         Do required setup of Gemini DRAGONS.
         """
-        # Write to the dragons config file
-        self.logger.debug("Writing DRAGONS config file.")
-        config_dir = os.path.join(str(Path.home()), '.geminidr')
-        if not os.path.exists(config_dir):
-            os.mkdir(config_dir)
-        with open(os.path.join(config_dir, 'rsys.cfg'), 'w') as f:
-            f.write(
-                '[calibs]\n' +
-                'standalone = True\n' +
-                'database_dir = {}'.format(
-                    os.path.join(
-                        os.getcwd(),
-                        self.state['config']
-                        ['DATARETRIEVAL']['raw_data_path'])))
+        self.logger.debug("Starting DRAGONS initialization.")
 
         logfile = self.state['config']['REDUCTION']['logfile']
         self.logger.debug("DRAGONS log file is {}".format(logfile))
         gempy.utils.logutils.config(file_name=logfile)
 
-        self.logger.debug("Starting DRAGONS calservice and caldb.")
-        self.caldb = cal_service.CalibrationService()
-        self.caldb.config()
-        self.caldb.init()
-        cal_service.set_calservice()
         self.logger.debug("DRAGONS initialization finished.")
 
     @raiseIfError('Failed to make processed dark.')
@@ -192,8 +173,7 @@ class Reducer:
             mask=((self.table['niriPipe_type'] == 'flat') |
                   (self.table['niriPipe_type'] == 'shortdark')),
             product_name='processed_bpm',
-            recipename='makeProcessedBPM',
-            add_to_cal_db=False
+            recipename='makeProcessedBPM'
         )
 
     @raiseIfError('Failed to make processed flat.')
@@ -215,13 +195,11 @@ class Reducer:
         self._make_product(
             frame_type='object',
             mask=(self.table['niriPipe_type'] == 'object'),
-            product_name='processed_stack',
-            add_to_cal_db=False
+            product_name='processed_stack'
         )
 
     def _make_product(
-            self, frame_type, mask, product_name, recipename=None,
-            add_to_cal_db=True
+            self, frame_type, mask, product_name, recipename=None
             ):
         """
         Does the work of creating a product.
@@ -269,11 +247,13 @@ class Reducer:
             self.logger.debug("Turning off dark correction.")
             dragons_reduce.uparms.append(('darkCorrect:do_dark', False))
 
+        # Provide calibrations manually to DRAGONS
+        dragons_reduce.ucals = \
+            recipe_system.utils.reduce_utils.normalize_ucals(
+                dragons_reduce.files, Reducer._pretty_string(self.products))
+
         # Start up DRAGONS
         dragons_reduce.runr()
-
-        if add_to_cal_db:
-            self.caldb.add_cal(dragons_reduce.output_filenames[0])
 
         self.logger.debug("Finished creation of {}.".format(product_name))
 
@@ -295,4 +275,10 @@ class Reducer:
                 'processed_dark:<path_to_dark>'
                 ]
         """
-        pass
+        out_list = []
+        for key in product_dict:
+            if key == 'processed_flat' and product_dict[key]:
+                out_list.append('processed_flat:'+product_dict[key])
+            elif key == 'processed_dark' and product_dict[key]:
+                out_list.append('processed_dark:'+product_dict[key])
+        return out_list

@@ -70,12 +70,10 @@ from unittest.mock import patch
 import pytest
 import astropy.table
 import os
-from pathlib import Path
 import logging
 from niriPipe.utils.reducer import Reducer
 from niriPipe.utils.state import get_initial_state
 import niriPipe.utils.customLogger
-import shutil
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 TESTDATA_DIR = os.path.join(THIS_DIR, 'data')
@@ -199,8 +197,9 @@ class TestReducer(unittest.TestCase):
             products['processed_stack']
         ])
 
+    @patch('recipe_system.utils.reduce_utils.normalize_ucals', return_value=[])
     @patch('recipe_system.reduction.coreReduce.Reduce', MockReduce)
-    def test_perfect_reduction(self):
+    def test_perfect_reduction(self, mock):
         """
         Mock DRAGONS to do a perfect reduction.
         """
@@ -256,7 +255,8 @@ class TestReducer(unittest.TestCase):
     in self.products if they are created.
     """
 
-    def test_make_product_skip(self):
+    @patch('recipe_system.utils.reduce_utils.normalize_ucals', return_value=[])
+    def test_make_product_skip(self, mock):
         self._caplog.clear()
 
         state, table = get_state_table(
@@ -274,8 +274,9 @@ class TestReducer(unittest.TestCase):
 
         assert 'Skipping creation of processed_stack' in self._caplog.text
 
+    @patch('recipe_system.utils.reduce_utils.normalize_ucals', return_value=[])
     @patch('recipe_system.reduction.coreReduce.Reduce', MockReduce)
-    def test_make_product_recipe_name(self):
+    def test_make_product_recipe_name(self, mock):
         """
         Should be able to pass a custom recipe name.
         """
@@ -295,8 +296,9 @@ class TestReducer(unittest.TestCase):
 
         assert 'Using provided recipe: fake_recipe.py' in self._caplog.text
 
+    @patch('recipe_system.utils.reduce_utils.normalize_ucals', return_value=[])
     @patch('recipe_system.reduction.coreReduce.Reduce', MockReduce)
-    def test_make_product_bad_pixel_mask(self):
+    def test_make_product_bad_pixel_mask(self, mock):
         """
         Custom bad pixel mask should be provided if it exists.
         """
@@ -316,8 +318,9 @@ class TestReducer(unittest.TestCase):
         assert 'Using provided bad pixel mask: pretend_bpm.fits' in \
             self._caplog.text
 
+    @patch('recipe_system.utils.reduce_utils.normalize_ucals', return_value=[])
     @patch('recipe_system.reduction.coreReduce.Reduce', MockReduce)
-    def test_make_product_turn_off_dark(self):
+    def test_make_product_turn_off_dark(self, mock):
         """
         Dark correction should be turned off for standard star stack.
         """
@@ -405,57 +408,3 @@ class TestReducer(unittest.TestCase):
                 'processed_flat:/flat/path/N2_flat.fits',
                 'processed_dark:/dark/path/N2_dark.fits'
             ]
-
-    def test_normalize_wrapper_old(self):
-        """
-        Make sure normalize_ucals works.
-        """
-        state, table = get_state_table()
-        reducer = Reducer(state=state, table=table)
-        reducer.products = {
-            'processed_flat': '/flat/path/N2_flat.fits',
-            'processed_dark': '/dark/path/N2_dark.fits',
-            'processed_bpm': '/bpm/path/N2_bpm.fits',
-            'processed_stack': None
-        }
-        assert sorted(reducer._normalize_wrapper(
-            files=[
-                'GN-2019A-FT-108-12-001',
-                'GN-2019A-FT-108-12-002'
-            ])) == \
-            {
-                ('GN-2019A-FT-108-12-001', 'processed_flat'):
-                    '/flat/path/N2_flat.fits',
-                ('GN-2019A-FT-108-12-002', 'processed_flat'):
-                    '/flat/path/N2_flat.fits',
-                ('GN-2019A-FT-108-12-001', 'processed_dark'):
-                    '/dark/path/N2_dark.fits',
-                ('GN-2019A-FT-108-12-002', 'processed_dark'):
-                    '/dark/path/N2_dark.fits'
-            }
-
-    # The format of normalize_ucals will change in an upcoming
-    # DRAGONS release, and will need this test instead of
-    # test_normalize_wrapper_old.
-
-    # def test_normalize_wrapper_new(self):
-    #     """
-    #     Make sure "new" version of normalize_ucals works.
-    #     """
-    #     state, table = get_state_table()
-    #     reducer = Reducer(state=state, table=table)
-    #     reducer.products = {
-    #         'processed_flat': '/flat/path/N2_flat.fits',
-    #         'processed_dark': '/dark/path/N2_dark.fits',
-    #         'processed_bpm': '/bpm/path/N2_bpm.fits',
-    #         'processed_stack': None
-    #     }
-    #     assert sorted(reducer._normalize_wrapper(
-    #         files=[
-    #             'GN-2019A-FT-108-12-001',
-    #             'GN-2019A-FT-108-12-002'
-    #         ])) == \
-    #         {
-    #             'processed_dark': '/dark/path/N2_dark.fits',
-    #             'processed_flat': '/flat/path/N2_flat.fits'
-    #         }
