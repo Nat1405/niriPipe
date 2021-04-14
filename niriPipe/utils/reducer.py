@@ -278,3 +278,21 @@ class Reducer:
         self.logger.debug("Finished creation of {}.".format(product_name))
 
         self.products[product_name] = dragons_reduce.output_filenames[0]
+
+    @staticmethod
+    def _pretty_string(product_dict):
+        """
+        _pretty_string takes in a dict of cals like:
+            {
+            'processed_flat': <path_to_flat>,
+            'processed_dark': <path_to_dark>,
+            'processed_bpm': <path_to_bpm>, ...
+            }
+        filters the keywords DRAGONS likes out ('processed_flat',
+        'processed_dark'), and gets it in normalize_ucals format
+                [
+                'processed_flat:<path_to_flat>',
+                'processed_dark:<path_to_dark>'
+                ]
+        """
+        pass

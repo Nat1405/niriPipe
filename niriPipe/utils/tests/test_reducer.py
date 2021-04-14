@@ -337,3 +337,125 @@ class TestReducer(unittest.TestCase):
             )
 
         assert 'Turning off dark correction' in self._caplog.text
+
+    """
+    Test transform of self.products to a form DRAGONS likes.
+
+    To provide custom calibrations to the DRAGONS Reduce class,
+    we set the Reduce.ucals attribute. There is a helper method,
+    recipe_system.utils.reduce_utils.normalize_ucals, that will
+    format the calibration set in a form that DRAGONS likes.
+
+    The API for this function exists with two forms.
+    - The first requires the list of reducer input files, and the
+      input calibrations to be provided as a list of strings.
+    - The second (yet to be released at time of writing) just
+      needs the input calibrations as a list of strings.
+
+    Basically, set reducer.ucals to:
+        try:
+            normalize_ucals(
+                files=reducer.files, cals=pretty_string(self.products))
+        except TypeError:
+            normalize_ucals(cals=pretty_string(self.products))
+    """
+
+    def test_pretty_string_empty(self):
+        """
+        Assumption: pretty_string will always be called with at least
+            {
+                'processed_flat': None,
+                'processed_dark': None,
+                'processed_bpm': None,
+                'processed_stack': None
+            }
+        pretty_string of this should be the empty list.
+        """
+
+        state, table = get_state_table()
+        reducer = Reducer(state=state, table=table)
+
+        assert not any([reducer.products[key] for key in reducer.products])
+        assert reducer._pretty_string(reducer.products) == []
+
+    def test_pretty_string_full(self):
+        """
+        pretty_string of something like
+            {
+                'processed_flat': '/flat/path/N2_flat.fits',
+                'processed_dark': '/dark/path/N2_dark.fits',
+                'processed_bpm': '/bpm/path/N2_bpm.fits',
+                'processed_stack': None
+            }
+        Should return:
+            [
+            'processed_flat:/flat/path/N2_flat.fits',
+            'processed_dark:/dark/path/N2_dark.fits'
+            ]
+        """
+        state, table = get_state_table()
+        reducer = Reducer(state=state, table=table)
+        assert reducer._pretty_string({
+            'processed_flat': '/flat/path/N2_flat.fits',
+            'processed_dark': '/dark/path/N2_dark.fits',
+            'processed_bpm': '/bpm/path/N2_bpm.fits',
+            'processed_stack': None
+        }) == \
+            [
+                'processed_flat:/flat/path/N2_flat.fits',
+                'processed_dark:/dark/path/N2_dark.fits'
+            ]
+
+    def test_normalize_wrapper_old(self):
+        """
+        Make sure normalize_ucals works.
+        """
+        state, table = get_state_table()
+        reducer = Reducer(state=state, table=table)
+        reducer.products = {
+            'processed_flat': '/flat/path/N2_flat.fits',
+            'processed_dark': '/dark/path/N2_dark.fits',
+            'processed_bpm': '/bpm/path/N2_bpm.fits',
+            'processed_stack': None
+        }
+        assert sorted(reducer._normalize_wrapper(
+            files=[
+                'GN-2019A-FT-108-12-001',
+                'GN-2019A-FT-108-12-002'
+            ])) == \
+            {
+                ('GN-2019A-FT-108-12-001', 'processed_flat'):
+                    '/flat/path/N2_flat.fits',
+                ('GN-2019A-FT-108-12-002', 'processed_flat'):
+                    '/flat/path/N2_flat.fits',
+                ('GN-2019A-FT-108-12-001', 'processed_dark'):
+                    '/dark/path/N2_dark.fits',
+                ('GN-2019A-FT-108-12-002', 'processed_dark'):
+                    '/dark/path/N2_dark.fits'
+            }
+
+    # The format of normalize_ucals will change in an upcoming
+    # DRAGONS release, and will need this test instead of
+    # test_normalize_wrapper_old.
+
+    # def test_normalize_wrapper_new(self):
+    #     """
+    #     Make sure "new" version of normalize_ucals works.
+    #     """
+    #     state, table = get_state_table()
+    #     reducer = Reducer(state=state, table=table)
+    #     reducer.products = {
+    #         'processed_flat': '/flat/path/N2_flat.fits',
+    #         'processed_dark': '/dark/path/N2_dark.fits',
+    #         'processed_bpm': '/bpm/path/N2_bpm.fits',
+    #         'processed_stack': None
+    #     }
+    #     assert sorted(reducer._normalize_wrapper(
+    #         files=[
+    #             'GN-2019A-FT-108-12-001',
+    #             'GN-2019A-FT-108-12-002'
+    #         ])) == \
+    #         {
+    #             'processed_dark': '/dark/path/N2_dark.fits',
+    #             'processed_flat': '/flat/path/N2_flat.fits'
+    #         }
