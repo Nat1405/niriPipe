@@ -177,40 +177,6 @@ class TestReducer(unittest.TestCase):
         """
         self._caplog = caplog
 
-    def test_init_dragons_good(self):
-        """
-        Make sure dragons init works.
-
-        Assume raw data path has been created.
-
-        Should:
-            - Output success message
-            - Have written to config file
-            - Have created caldb
-        """
-        state, _ = get_state_table()
-
-        if os.path.exists(os.path.join(str(Path.home()), '.geminidr')):
-            shutil.rmtree(os.path.join(str(Path.home()), '.geminidr'))
-
-        os.mkdir(os.path.join(
-                os.getcwd(),
-                state['config']['DATARETRIEVAL']['raw_data_path']))
-
-        reducer = Reducer(state=state, table=None)
-        with self._caplog.at_level(logging.DEBUG):
-            reducer._init_dragons()
-        assert os.stat(os.path.join(
-                str(Path.home()),
-                '.geminidr',
-                'rsys.cfg'
-            )).st_size > 0
-        assert os.stat(os.path.join(
-                os.getcwd(),
-                state['config']['DATARETRIEVAL']['raw_data_path'],
-                'cal_manager.db'
-            )).st_size > 0
-
     def test_init_with_no_reduction(self):
         """
         Should be able to not make any products.
@@ -245,8 +211,7 @@ class TestReducer(unittest.TestCase):
         )
 
         reducer = Reducer(state=state, table=table)
-        with patch('recipe_system.cal_service.CalibrationService.add_cal'):
-            products = reducer.run()
+        products = reducer.run()
 
         assert all([
             products['processed_dark'] == 'fake_file.fits',
@@ -287,7 +252,8 @@ class TestReducer(unittest.TestCase):
 
     The dark correction needs turned off for standard star stacks.
 
-    Only the processed flat and dark should be added to the DRAGONS caldb.
+    The processed flat, processed dark, and processed bpm should be stored
+    in self.products if they are created.
     """
 
     def test_make_product_skip(self):
@@ -324,8 +290,7 @@ class TestReducer(unittest.TestCase):
                 frame_type='object',
                 mask=(table['niriPipe_type'] == 'object'),
                 product_name='processed_stack',
-                recipename='fake_recipe.py',
-                add_to_cal_db=False
+                recipename='fake_recipe.py'
             )
 
         assert 'Using provided recipe: fake_recipe.py' in self._caplog.text
@@ -345,8 +310,7 @@ class TestReducer(unittest.TestCase):
             reducer._make_product(
                 frame_type='flat',
                 mask=(table['niriPipe_type'] == 'flat'),
-                product_name='processed_flat',
-                add_to_cal_db=False
+                product_name='processed_flat'
             )
 
         assert 'Using provided bad pixel mask: pretend_bpm.fits' in \
@@ -369,8 +333,7 @@ class TestReducer(unittest.TestCase):
             reducer._make_product(
                 frame_type='object',
                 mask=(table['niriPipe_type'] == 'object'),
-                product_name='processed_stack',
-                add_to_cal_db=False
+                product_name='processed_stack'
             )
 
         assert 'Turning off dark correction' in self._caplog.text
