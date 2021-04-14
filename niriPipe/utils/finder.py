@@ -190,8 +190,10 @@ class Finder:
         """
         flat_query = self.query_prefix + \
             "AND Observation.type = 'FLAT' " + \
-            "AND Observation.proposal_id = '{}' ".format(
-                self.state['current_stack']['proposal_id']) + \
+            "AND Plane.time_bounds_lower >= '{:.4f}' ".format(
+                 self.state['current_stack']['mjd_date'] - 7) + \
+            "AND Plane.time_bounds_lower <= '{:.4f}' ".format(
+                 self.state['current_stack']['mjd_date'] + 7) + \
             "AND Plane.energy_bandpassName = '{}' ".format(
                 self.state['current_stack']['filter']) + \
             self.query_suffix
@@ -225,8 +227,10 @@ class Finder:
         """
         longdark_query = self.query_prefix + \
             "AND Observation.type = 'DARK' " + \
-            "AND Observation.proposal_id = '{}' ".format(
-                self.state['current_stack']['proposal_id']) + \
+            "AND Plane.time_bounds_lower >= '{:.4f}' ".format(
+                 self.state['current_stack']['mjd_date'] - 7) + \
+            "AND Plane.time_bounds_lower <= '{:.4f}' ".format(
+                 self.state['current_stack']['mjd_date'] + 7) + \
             "AND Plane.time_exposure = '{}' ".format(
                 self.state['current_stack']['exptime']) + \
             self.query_suffix
