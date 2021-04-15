@@ -64,110 +64,64 @@
 #
 #
 # ***********************************************************************
-
-import unittest
-from unittest.mock import patch
-import pytest
-import os
 import logging
-from niriPipe.utils.tagger import Tagger
-import niriPipe.utils.customLogger
-
-THIS_DIR = os.path.dirname(os.path.realpath(__file__))
-TESTDATA_DIR = os.path.join(THIS_DIR, 'data')
-
-# Need to enable propagation for log capturing to work
-# Note that DRAGONS messes with the root logger, so can't
-# check DEBUG log messages in pytests.
-niriPipe.utils.customLogger.enable_propagation()
-niriPipe.utils.customLogger.set_level(logging.DEBUG)
+import os
+import astropy.io.fits as fits
 
 
-def get_products(
-        processed_flat='/fake/path/N2019_flat.fits',
-        processed_dark='/fake/path/N2019_dark.fits',
-        processed_bpm='/fake/path/N2019_bpm.fits',
-        processed_stack='/fake/path/N2019_stack.fits'):
+class Tagger:
     """
-    The Tagger takes a dictionary of reduction products as input,
-    and raises an error if something goes wrong. It is stateless
-    and configuration-less.
+    Makes products have CADC-appropriate metadata.
     """
+    def __init__(self, products):
+        self.products = products
+        self.logger = logging.getLogger('{}.{}'.format(
+            self.__module__, self.__class__.__name__))
 
-    products = {
-        'processed_flat': processed_flat,
-        'processed_dark': processed_dark,
-        'processed_bpm': processed_bpm,
-        'processed_stack': processed_stack
-    }
+    def run(self):
+        if not self.products['processed_stack']:
+            self.logger.info("No processed_stack present; skipping tagging.")
+            return
 
-    return products
+        # Add product-specific keywords
+        if self.products['processed_bpm']:
+            self.set_header_keyword(
+                filename=self.products['processed_stack'],
+                keyword='BPMIMG',
+                value=os.path.basename(self.products['processed_bpm']),
+                extname='PRIMARY',
+                comment='Bad pixel mask used'
+            )
 
-
-class TestTagger(unittest.TestCase):
-    """
-    Test the Tagger class.
-    """
-    @pytest.fixture(autouse=True)
-    def initdir(self, tmpdir):
-        tmpdir.chdir()
-
-    @pytest.fixture(autouse=True)
-    def inject_fixtures(self, caplog):
-        """
-        Magic to get log capturing working.
-        """
-        self._caplog = caplog
-
-    def test_tagger_stack_none(self):
-        """
-        If the 'output_stack' is None, skip Tagging.
-        """
-        products = get_products(processed_stack=None)
-
-        self._caplog.clear()
-        tagger = Tagger(products)
-        with self._caplog.at_level(logging.DEBUG):
-            tagger.run()
-
-        assert "No processed_stack present; skipping tagging." in \
-            self._caplog.text
-
-    def test_tagger_good_stack_no_cals(self):
-        """
-        If 'output_stack' exists but no other products present,
-        just add generic metadata keywords (SOFTWARE, SOFT_VER, SOFT_DOI)
-        """
-        products = get_products(
-            processed_flat=None,
-            processed_dark=None,
-            processed_bpm=None
+        # Add generic metadata keywords
+        self.set_header_keyword(
+            filename=self.products['processed_stack'],
+            keyword='SOFTWARE',
+            value='niriPipe',
+            extname='PRIMARY',
+            comment='Data reduction software name'
+        )
+        self.set_header_keyword(
+            filename=self.products['processed_stack'],
+            keyword='SOFT_VER',
+            value='0.1',
+            extname='PRIMARY',
+            comment='Data reduction software version'
+        )
+        self.set_header_keyword(
+            filename=self.products['processed_stack'],
+            keyword='SOFT_DOI',
+            value='fake_doi_for_now',
+            extname='PRIMARY',
+            comment='Data reduction software DOI'
         )
 
-        self._caplog.clear()
-        tagger = Tagger(products)
-        with self._caplog.at_level(logging.DEBUG):
-            with patch('astropy.io.fits.setval'):
-                tagger.run()
-
-        assert 'Setting SOFTWARE' in self._caplog.text
-        assert 'Setting SOFT_VER' in self._caplog.text
-        assert 'Setting SOFT_DOI' in self._caplog.text
-
-    def test_tagger_good_stack_bpm_present(self):
+    def set_header_keyword(self, filename, keyword, value, extname, comment):
         """
-        If 'output_stack' exists and 'processed_bpm' exists,
-        add the 'BPMIMG' header keyword.
+        Stub to make testing easier.
         """
-        products = get_products(
-            processed_flat=None,
-            processed_dark=None
-        )
-
-        self._caplog.clear()
-        tagger = Tagger(products)
-        with self._caplog.at_level(logging.DEBUG):
-            with patch('astropy.io.fits.setval'):
-                tagger.run()
-
-        assert 'Setting BPMIMG' in self._caplog.text
+        self.logger.info(
+            "Setting {} in {} to {}.".format(keyword, filename, value))
+        fits.setval(
+                filename, keyword, value=value,
+                extname=extname, comment=comment)

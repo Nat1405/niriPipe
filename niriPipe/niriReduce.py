@@ -2,6 +2,10 @@ import argparse
 import niriPipe.inttests
 import niriPipe.utils.state
 import niriPipe.utils.customLogger
+import niriPipe.utils.downloader
+import niriPipe.utils.finder
+import niriPipe.utils.reducer
+import niriPipe.utils.tagger
 import logging
 import os
 import json
@@ -62,11 +66,21 @@ def run_main(args):
     module_logger.info("Starting reducer.")
     try:
         reducer = niriPipe.utils.reducer.Reducer(state=state, table=data_table)
-        reducer.run()
+        products = reducer.run()
     except Exception as e:
         logging.critical("Reducer failed!")
         raise e
     module_logger.info("Reducer succeeded.")
+
+    # Add/modify metadata for CADC
+    module_logger.info("Starting Tagger.")
+    try:
+        tagger = niriPipe.utils.tagger.Tagger(products=products)
+        tagger.run()
+    except Exception as e:
+        logging.critical("Tagger failed!")
+        raise e
+    module_logger.info("Tagger succeeded.")
 
     # Check to see if a "stack" was created.
     if glob.glob("*_stack.fits"):
@@ -76,6 +90,8 @@ def run_main(args):
         raise RuntimeError("Output stack not found.")
 
     module_logger.info("Pipeline finished!")
+
+    return products
 
 
 def niri_reduce_main():
