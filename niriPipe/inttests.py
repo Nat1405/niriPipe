@@ -76,6 +76,7 @@ from niriPipe.utils.state import get_initial_state
 import astropy.table
 import shutil
 import json
+import astropy.io.fits as fits
 
 
 module_logger = niriPipe.utils.customLogger.get_logger(__name__)
@@ -279,9 +280,26 @@ def run_inttest():
     args.intent = ['science']
     args.proposal_id = []
     args.verbose = True
-    args.config = None
 
-    niriPipe.niriReduce.run_main(args)
+    # Create a custom bad pixel mask, just to test all code paths.
+    with open('custom_config.cfg', 'w') as f:
+        f.write('[DATAFINDER]\nmin_shortdarks = 1\n')
+    args.config = [os.path.join(os.getcwd(), 'custom_config.cfg')]
+
+    products = niriPipe.niriReduce.run_main(args)
+
+    # Make sure output "_stack.fits" has appropriate metadata added as well.
+    if fits.getval(products['output_stack'], 'FLATIM') != \
+            'N20190406S0017_flat.fits':
+        raise RuntimeError("Problems with FLATIM keyword.")
+    elif fits.getval(products['output_stack'], 'DARKIM') != \
+            'N20190406S0042_dark.fits':
+        raise RuntimeError("Problems with DARKIM keyword.")
+    elif fits.getval(products['output_stack'], 'BPMIMG') != \
+            'N20190408S0431_bpm.fits':
+        raise RuntimeError("Problems with BPMIMG keyword.")
+    elif fits.getval(products['output_stack'], 'SOFTWARE') != 'niriPipe':
+        raise RuntimeError("Problems with SOFTWARE keyword.")
 
 
 def run_reduce_inttest():
@@ -383,5 +401,3 @@ def run_reduce_inttest():
     reducer.run()
 
     module_logger.info("Reducer test succeeded!")
-
-
