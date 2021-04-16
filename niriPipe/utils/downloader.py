@@ -144,7 +144,6 @@ class Downloader:
                     exc_info=True
                 )
                 raise e
-        self._check_for_MD_files()
 
     def _get_file(self, url):
         """
@@ -224,103 +223,6 @@ class Downloader:
             raise e
 
         return filename
-
-    def _check_for_MD_files(self):
-        """
-        Gemini sometimes attaches an "-md!" prefix to their files to indicate
-        there's some sort of metadata problem with them. The CADC archive
-        doesn't currently contain that information, but it can be queried
-        from the Gemini Observatory Archive.
-
-        The idea is to get metadata from Gemini for all NIRI files taken
-        in the same date range, then look through that JSON result for
-        each specific file and see if its metadata flag (md-ready) is
-        set to true.
-
-        Several cases possible:
-            - No files provided. Should skip metadata check.
-            - Files provided, but can't find date for any.
-              Should skip metadata check.
-            - One file has a valid date: should do metatdata
-              check for that file.
-            - N files have valid date: should do metadata check
-              for all of them.
-        """
-
-        # Get earliest and latest UT date of fits files
-        earliest = datetime.date.max
-        latest = datetime.date.min
-        for fits_file in self._find_fits(os.path.join(
-                self.download_path,
-                '*.fits')):
-            try:
-                date = self._get_date(fits_file)
-            except Exception:
-                self.logger.warning(
-                    "Unable to get date from frame {}, ".format(fits_file) +
-                    'probably a malformed file; deleting file.', exc_info=True
-                )
-                self._remove_file(fits_file)
-                continue
-            if date < earliest:
-                earliest = date
-            if date > latest:
-                latest = date
-
-        # No files found
-        if earliest == datetime.date.max and latest == datetime.date.min:
-            self.logger.warning(
-                "Unable to get dates from fits files in " +
-                "{}. Skipping Gemini metadata check.".format(
-                    self.download_path))
-            return
-        # One file found
-        elif earliest == latest:
-            query = \
-                'https://archive.gemini.edu/jsonsummary/NotFail/' + \
-                'not_site_monitoring/{}'.format(earliest) + \
-                '/notengineering/NIRI/canonical/present'
-        # N files found
-        else:
-            query = \
-                'https://archive.gemini.edu/jsonsummary/NotFail/' + \
-                'not_site_monitoring/{}-{}'.format(earliest, latest) + \
-                '/notengineering/NIRI/canonical/present'
-
-        try:
-            r = requests.get(query)
-            json_data = r.json()
-        except Exception:
-            self.logger.warning(
-                "Failed to retrieve metadata from Gemini. " +
-                "Skipping Gemini metadata check.", exc_info=True
-            )
-            return
-
-        for item in json_data:
-            try:
-                file_path = os.path.join(
-                    self.download_path,
-                    item['name']
-                )
-                if self._file_exists(file_path):
-                    if item['mdready']:
-                        self.logger.debug(
-                            "Frame {} passed Gemini ".format(item['name']) +
-                            "metadata check."
-                        )
-                    else:
-                        self.logger.info(
-                            "Removing frame {} because ".format(item['name']) +
-                            "it failed Gemini metadata check."
-                        )
-                    self._remove_file(file_path)
-            except KeyError:
-                self.logger.warning(
-                    "Missing response attributes from Gemini. " +
-                    "Skipping Gemini metadata check."
-                )
-                continue
 
     def _get_date(self, fits_file):
         """
