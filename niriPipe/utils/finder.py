@@ -217,6 +217,10 @@ class Finder:
             self.logger.warning(
                 "Failed to make sure flats had same camera as objects.")
 
+        # Make sure we still have enough flats
+        self._check_sufficient_frames(
+            key='min_flats', frame_type='flat', table=flat_table)
+
         return flat_table
 
     def _find_longdarks(self):
@@ -277,12 +281,9 @@ class Finder:
                 self.logger.debug("Found no frames; returning empty table.")
                 return astropy.table.Table(names=self.min_columns)
 
-        if len(table) < \
-                int(self.state['config']['DATAFINDER'][key]):
-            raise RuntimeError("Required {} {} frames; found {}.".format(
-                self.state['config']['DATAFINDER'][key],
-                frame_type,
-                len(table)))
+        self._check_sufficient_frames(
+            key=key, frame_type=frame_type, table=table)
+
         self.logger.info("Found {} {} frames.".format(len(table), frame_type))
         return table
 
@@ -310,6 +311,20 @@ class Finder:
         job.run().wait()
         job.raise_if_error()
         return job.fetch_result().to_table()
+
+    def _check_sufficient_frames(self, key, frame_type, table):
+        """
+        Make sure a table has sufficient number of frames of a given
+        type, else raise a RuntimeError.
+        """
+        if ((not table) and int(self.state['config']['DATAFINDER'][key])) or \
+                (len(table) < int(self.state['config']['DATAFINDER'][key])):
+
+            table_length = 0 if not table else len(table)
+            raise RuntimeError("Required {} {} frames; found {}.".format(
+                self.state['config']['DATAFINDER'][key],
+                frame_type,
+                table_length))
 
     def _metadata_from_header(self, productID, card):  # pragma: no cover
         """

@@ -237,22 +237,65 @@ class TestFinder(unittest.TestCase):
                 finder._find_objects()
         assert 'Failed to set stack metadata' in self._caplog.text
 
-    @patch.object(Finder, '_find_frames', return_value=None)
-    def test_find_flats(self, mock):
+    @patch.object(Finder, '_find_frames', return_value=astropy.table.Table([
+            ['flat1', 'flat2'],
+            [
+                'ivo://cadc.nrc.ca/GEMINI?GN-2019B-FT-108/N20_flat',
+                'ivo://cadc.nrc.ca/GEMINI?GN-2019B-FT-108/N20_flat2'
+            ],
+            ['GN-2019B-FT-108-001', 'GN-2019B-FT-108-002'],
+            [58000, 58000]],
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower']))
+    @patch.object(Finder, '_metadata_from_header', side_effect=['f-32', 'f-6'])
+    def test_find_flats(self, mock1, mock2):
         """
         Make sure flats are comparing camera information.
+
+        Should filter out the first flat, and return the second flat.
         """
         self._caplog.clear()
 
         state = get_state(stack_metadata={
             'mjd_date': 10000,
             'filter': 'J',
-            'proposal_id': 'GN-XXXXX-X-X'})
+            'proposal_id': 'GN-XXXXX-X-X',
+            'camera': 'f-6'})
 
         finder = Finder(state)
-        with self._caplog.at_level(logging.WARNING):
+        with self._caplog.at_level(logging.DEBUG):
+            flats = finder._find_flats()
+
+        assert '1 flat frames remain after matching cam' in self._caplog.text
+        assert 'flat1' not in flats['productID']
+        assert 'flat2' in flats['productID']
+
+    @patch.object(Finder, '_find_frames', return_value=astropy.table.Table([
+            ['foo'],
+            ['ivo://cadc.nrc.ca/GEMINI?GN-2019B-FT-108/N20_flat'],
+            ['GN-2019B-FT-108-001'],
+            [58000]],
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower']))
+    @patch.object(Finder, '_metadata_from_header', return_value='f-6')
+    def test_find_flats_after_camera(self, mock1, mock2):
+        """
+        If sufficient flats are found, but then insufficient flats remain
+        after selecting those with the same camera as the object frames,
+        raise a RuntimeError for insufficient flats.
+        """
+        self._caplog.clear()
+
+        state = get_state(stack_metadata={
+            'mjd_date': 10000,
+            'filter': 'J',
+            'proposal_id': 'GN-XXXXX-X-X',
+            'camera': 'f-32'})
+
+        finder = Finder(state)
+        with pytest.raises(RuntimeError) as exc_info:
             finder._find_flats()
-        assert 'Failed to make sure' in self._caplog.text
+        assert 'flat frames; found ' in str(exc_info.value)
 
     def test_find_frames(self):
         """
