@@ -151,6 +151,7 @@ class Finder:
         Should be called before any of the find_cal_* methods.
         """
         object_query = self.query_prefix + \
+            "AND Observation.type = 'OBJECT' " + \
             "AND Observation.observationID LIKE '{}%' ".format(
                 self.state['current_stack']['obs_name']) + \
             self.query_suffix
