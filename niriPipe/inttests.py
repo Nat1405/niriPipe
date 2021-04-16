@@ -167,7 +167,7 @@ def finder_inttest():
                 'min_objects': '1',
                 'min_flats': '1',
                 'min_longdarks': '1',
-                'min_shortdarks': '0',
+                'min_shortdarks': '1',
                 'max_tries': 30,
             }
         },
@@ -240,7 +240,7 @@ def finder_inttest():
                 'min_objects': '1',
                 'min_flats': '1',
                 'min_longdarks': '1',
-                'min_shortdarks': '0',
+                'min_shortdarks': '1',
                 'max_tries': 30
             }
         },

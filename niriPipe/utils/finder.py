@@ -96,6 +96,11 @@ class Finder:
             'time_bounds_lower', 'time_exposure', 'type', 'intent',
             'proposal_id', 'observationID'
         ]
+        self.col_dtypes = [
+            object, str, str,
+            float, float, str, str,
+            str, str
+        ]
         self.query_prefix = \
             "SELECT " + ', '.join(self.min_columns) + " " + \
             "FROM caom2.Plane AS Plane " + \
@@ -118,6 +123,7 @@ class Finder:
         the same integration time as science frames), and optional short darks
         (1 second darks used to generate a bad pixel mask).
         """
+
         return astropy.table.vstack([
             self._mark_as('object', self._find_objects()),
             self._mark_as('flat', self._segment(self._find_flats())),
@@ -204,8 +210,11 @@ class Finder:
         # Exclude flats that don't use same camera as objects
         self.logger.info("Adding camera information to flats.")
         try:
-            cam_column = [self._metadata_from_header(
-                x['productID']+'.fits', 'CAMERA') for x in flat_table]
+            cam_column = astropy.table.Column(
+                data=[self._metadata_from_header(
+                    x['productID']+'.fits', 'CAMERA') for x in flat_table],
+                dtype=str
+            )
             flat_table.add_column(cam_column, name='camera')
             self.logger.debug("Done getting camera information.")
             mask = (flat_table['camera'] !=
@@ -269,18 +278,21 @@ class Finder:
         when appropriate, or raises an exception if insufficient files
         found.
         """
-        self.logger.debug("Finding {} frames.".format(frame_type))
-        self.logger.debug("{} query: \n{}".format(frame_type, query))
         key = 'min_{}s'.format(frame_type)
+        if int(self.state['config']['DATAFINDER'][key]):
+            self.logger.debug("Finding {} frames.".format(frame_type))
+        else:
+            self.logger.debug(
+                "No {} frames requested; skipping query.".format(frame_type))
+            return astropy.table.Table(
+                names=self.min_columns,
+                dtype=self.col_dtypes)
+        self.logger.debug("{} query: \n{}".format(frame_type, query))
         try:
             table = self._do_query_retry_wrapper(query, 1)
         except Exception as e:
-            if int(self.state['config']['DATAFINDER'][key]):
-                self.logger.critical("{} query failed.".format(frame_type))
-                raise e
-            else:
-                self.logger.debug("Found no frames; returning empty table.")
-                return astropy.table.Table(names=self.min_columns)
+            self.logger.critical("{} query failed.".format(frame_type))
+            raise e
 
         self._check_sufficient_frames(
             key=key, frame_type=frame_type, table=table)
@@ -362,8 +374,13 @@ class Finder:
         The failure of segmentation might cause downstream errors, so log
         a warning if it fails.
         """
-        self.logger.debug(
-            "Segmentation starting with {} frames.".format(len(in_table)))
+        # If the in_table is empty, skip segmentation on it.
+        if len(in_table):
+            self.logger.debug(
+                "Segmentation starting with {} frames.".format(len(in_table)))
+        else:
+            self.logger.debug("Empty input table; skipping segmentation.")
+            return in_table
         # Do segmentation based on state['current_stack']['mjd+date']
 
         # Make a new column with the observation name

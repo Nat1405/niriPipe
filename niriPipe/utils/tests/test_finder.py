@@ -313,15 +313,14 @@ class TestFinder(unittest.TestCase):
                     finder._find_frames('fake_query', 'object')
         assert 'object query failed' in self._caplog.text
 
-        # However, if TAP raises exception for optional frames, shouldn't
-        # raise an error.
+        # Skip finding optional frames.
         state = get_state(min_objects=0)
 
         with self._caplog.at_level(logging.DEBUG):
-            with patch.object(Finder, '_do_query', raise_exception):
-                finder = Finder(state)
-                finder._find_frames('fake_query', 'object')
-        assert 'Found no frames; returning empty' in self._caplog.text
+            finder = Finder(state)
+            finder._find_frames('fake_query', 'object')
+        assert 'No object frames requested; skipping query.' in \
+            self._caplog.text
 
         # If TAP returns less frames than required, raise an exception.
         state = get_state(min_objects=3)
@@ -364,10 +363,10 @@ class TestFinder(unittest.TestCase):
                    'time_bounds_lower'])
 
         self._caplog.clear()
-        with self._caplog.at_level(logging.WARNING):
+        with self._caplog.at_level(logging.DEBUG):
             finder = Finder(state)
         assert len(finder._segment(empty_table)) == 0
-        assert 'Segmentation failed.' in self._caplog.text
+        assert 'skipping segmentation.' in self._caplog.text
 
         # A one-row table should just be returned
         state = get_state(stack_metadata={'mjd_date': 57000})
