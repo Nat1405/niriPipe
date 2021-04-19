@@ -60,7 +60,7 @@ def run_main(args):
         finder = niriPipe.utils.finder.Finder(state)
         data_table = finder.run()
     except Exception as e:
-        logging.critical("Datafinder failed!")
+        module_logger.critical("Datafinder failed!")
         raise e
     module_logger.info(
         "Finder succeeded; found {} files.".format(len(data_table)))
@@ -72,7 +72,7 @@ def run_main(args):
             niriPipe.utils.downloader.Downloader(state=state, table=data_table)
         downloader.download_query_cadc()
     except Exception as e:
-        logging.critical("Downloader failed!")
+        module_logger.critical("Downloader failed!")
         raise e
     module_logger.info("Downloader succeeded.")
 

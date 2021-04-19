@@ -124,6 +124,7 @@ def downloader_inttest():
     try:
         table = Finder._do_query(query)
     except Exception:
+        module_logger.exception("Problem getting table from CADC.")
         raise RuntimeError("Problem getting table from CADC.")
 
     state = {
