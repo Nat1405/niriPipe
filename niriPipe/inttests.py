@@ -73,20 +73,19 @@ from niriPipe.utils.finder import Finder
 
 
 def create_logger():
-    root_logger = logging.getLogger('niriPipe')
+    root_logger = logging.getLogger(__name__.split('.')[0])
     root_logger.setLevel(logging.DEBUG)
-    root_logger.propagate = True
-    ch = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s-%(name)s-%(levelname)s-%(message)s')
-    ch.setFormatter(formatter)
-    root_logger.addHandler(ch)
 
-    module_logger = logging.getLogger('niriPipe.inttests')
+    module_logger = logging.getLogger(__name__)
+    module_logger.setLevel(logging.DEBUG)
+    if not module_logger.hasHandlers():
+        ch = logging.StreamHandler()
+        formatter = logging.Formatter(
+            '%(asctime)s %(name)s %(levelname)s %(message)s')
+        ch.setFormatter(formatter)
+        module_logger.addHandler(ch)
+
     return module_logger
-
-
-module_logger = create_logger()
 
 
 def md5_of_dir(directory):
@@ -110,6 +109,8 @@ def downloader_inttest():
 
 
     """
+    module_logger = create_logger()
+
     query = \
         "SELECT observationID, publisherID, productID " +\
         "FROM caom2.Observation AS o JOIN caom2.Plane AS p " +\
@@ -123,14 +124,14 @@ def downloader_inttest():
     try:
         table = Finder._do_query(query)
     except Exception:
-        logging.exception("Problem getting table from CADC.")
+        module_logger.exception("Problem getting table from CADC.")
+        raise RuntimeError("Problem getting table from CADC.")
 
     state = {
             'current_working_directory': os.getcwd(),
             'config': {
                 'DATARETRIEVAL': {
-                    'raw_data_path': 'rawData',
-                    'temp_downloads_path': '.temp_downloads'
+                    'raw_data_path': 'rawData'
                 }
             }
         }
@@ -168,18 +169,21 @@ def finder_inttest():
     Shortdark:   N20190406S01[12-21]
     Longdarks:   N20190406S00[42-56]
     """
+    module_logger = create_logger()
 
     state = {
         'config': {
             'DATAFINDER': {
-                'min_objects': 1,
-                'min_flats': 1,
-                'min_longdarks': 1,
-                'min_shortdarks': 0
+                'min_objects': '1',
+                'min_flats': '1',
+                'min_longdarks': '1',
+                'min_shortdarks': '0',
+                'max_tries': 30,
             }
         },
         'current_stack': {
-            'obs_name': 'GN-2019A-FT-108-12'
+            'obs_name': 'GN-2019A-FT-108-12',
+            'proposal_id': 'GN-2019A-FT-108'
         }
     }
 
@@ -243,14 +247,16 @@ def finder_inttest():
     state = {
         'config': {
             'DATAFINDER': {
-                'min_objects': 1,
-                'min_flats': 1,
-                'min_longdarks': 1,
-                'min_shortdarks': 0
+                'min_objects': '1',
+                'min_flats': '1',
+                'min_longdarks': '1',
+                'min_shortdarks': '0',
+                'max_tries': 30
             }
         },
         'current_stack': {
-            'obs_name': 'GN-2007B-Q-85-24'
+            'obs_name': 'GN-2007B-Q-85-24',
+            'proposal_id': 'GN-2007B-Q-85'
         }
     }
 
@@ -269,3 +275,20 @@ def finder_inttest():
     module_logger.info(
         "Test for stack GN-2007B-Q-85-24 succeeded. " +
         "Desired {} frames, found {}.".format(len(desired_frames), len(table)))
+
+
+def run_inttest():
+    """
+    Make sure reductions are working and making sense.
+    """
+
+    class Args:
+        pass
+
+    args = Args()
+    args.obsID = ['GN-2019A-FT-108-12']
+    args.proposal_id = []
+    args.verbose = True
+    args.config = None
+
+    niriPipe.niriReduce.run_main(args)
