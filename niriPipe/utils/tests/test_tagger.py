@@ -83,6 +83,24 @@ niriPipe.utils.customLogger.enable_propagation()
 niriPipe.utils.customLogger.set_level(logging.DEBUG)
 
 
+def get_state(
+            min_objects='1',
+            min_flats='1',
+            min_longdarks='1',
+            min_shortdarks='1'):
+    state = {
+        'config': {
+            'DATAFINDER': {
+                'min_objects': min_objects,
+                'min_flats': min_flats,
+                'min_longdarks': min_longdarks,
+                'min_shortdarks': min_shortdarks
+            }
+        }
+    }
+    return state
+
+
 def get_products(
         processed_flat='/fake/path/N2019_flat.fits',
         processed_dark='/fake/path/N2019_dark.fits',
@@ -119,19 +137,28 @@ class TestTagger(unittest.TestCase):
         """
         self._caplog = caplog
 
-    def test_tagger_stack_none(self):
+    def test_tagger_skip_tagging(self):
         """
-        If the 'output_stack' is None, skip Tagging.
+        Skip tagging of products that aren't required.
         """
         products = get_products(processed_stack=None)
 
         self._caplog.clear()
-        tagger = Tagger(products)
-        with self._caplog.at_level(logging.DEBUG):
-            tagger.run()
+        tagger = Tagger(
+                products=products,
+                state=get_state(
+                        min_objects='1',
+                        min_flats='0',
+                        min_longdarks='1',
+                        min_shortdarks='0'
+                    )
+        )
+        with patch('astropy.io.fits.setval'):
+            with self._caplog.at_level(logging.DEBUG):
+                tagger.run()
 
-        assert "No processed_stack present; skipping tagging." in \
-            self._caplog.text
+        assert "Skipping tagging of processed_flat" in self._caplog.text
+        assert "Skipping tagging of processed_bpm" in self._caplog.text
 
     def test_tagger_good_stack_no_cals(self):
         """
@@ -145,7 +172,14 @@ class TestTagger(unittest.TestCase):
         )
 
         self._caplog.clear()
-        tagger = Tagger(products)
+        tagger = Tagger(
+                products=products,
+                state=get_state(
+                    min_flats='0',
+                    min_longdarks='0',
+                    min_shortdarks='0'
+                )
+        )
         with self._caplog.at_level(logging.DEBUG):
             with patch('astropy.io.fits.setval'):
                 tagger.run()
@@ -165,7 +199,7 @@ class TestTagger(unittest.TestCase):
         )
 
         self._caplog.clear()
-        tagger = Tagger(products)
+        tagger = Tagger(products=products, state=get_state())
         with self._caplog.at_level(logging.DEBUG):
             with patch('astropy.io.fits.setval'):
                 tagger.run()

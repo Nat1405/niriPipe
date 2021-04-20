@@ -272,6 +272,8 @@ def run_inttest():
     Make sure reductions are working and making sense.
     """
 
+    module_logger.info("Starting run inttest.")
+
     class Args:
         pass
 
@@ -289,17 +291,19 @@ def run_inttest():
     products = niriPipe.niriReduce.run_main(args)
 
     # Make sure output "_stack.fits" has appropriate metadata added as well.
-    if fits.getval(products['output_stack'], 'FLATIM') != \
+    if fits.getval(products['processed_stack'], 'FLATIM') != \
             'N20190406S0017_flat.fits':
         raise RuntimeError("Problems with FLATIM keyword.")
-    elif fits.getval(products['output_stack'], 'DARKIM') != \
+    elif fits.getval(products['processed_stack'], 'DARKIM') != \
             'N20190406S0042_dark.fits':
         raise RuntimeError("Problems with DARKIM keyword.")
-    elif fits.getval(products['output_stack'], 'BPMIMG') != \
-            'N20190408S0431_bpm.fits':
+    elif fits.getval(products['processed_stack'], 'BPMIMG') != \
+            'N20190406S0017_bpm.fits':
         raise RuntimeError("Problems with BPMIMG keyword.")
-    elif fits.getval(products['output_stack'], 'SOFTWARE') != 'niriPipe':
+    elif fits.getval(products['processed_stack'], 'SOFTWARE') != 'niriPipe':
         raise RuntimeError("Problems with SOFTWARE keyword.")
+
+    module_logger.info("Run inttest suceeded!")
 
 
 def run_reduce_inttest():

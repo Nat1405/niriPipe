@@ -65,77 +65,49 @@
 #
 # ***********************************************************************
 import logging
-import os
 import astropy.io.fits as fits
+import niriPipe.utils.tagger
 
 
-class Tagger:
+class Checker:
     """
-    Makes products have CADC-appropriate metadata.
+    Checks that required products are present and well-formed.
     """
-    keys = [
-            ('object', 'stack'),
-            ('flat', 'flat'),
-            ('longdark', 'dark'),
-            ('shortdark', 'bpm')
-    ]
-
     def __init__(self, products, state):
         self.products = products
         self.state = state
         self.logger = logging.getLogger('{}.{}'.format(
             self.__module__, self.__class__.__name__))
+        self.keys = niriPipe.utils.tagger.Tagger.keys
 
     def run(self):
+        """
+        Check that required products are present, and do a quick check to make
+        sure Tagger was run on them.
+        """
         for raw_key, product_key in self.keys:
             config_key = 'min_{}s'.format(raw_key)
             product_name = 'processed_{}'.format(product_key)
 
             if int(self.state['config']['DATAFINDER'][config_key]):
-                # Add product-specific keywords
-                if self.products['processed_bpm']:
-                    self.set_header_keyword(
-                        filename=self.products[product_name],
-                        keyword='BPMIMG',
-                        value=os.path.basename(self.products['processed_bpm']),
-                        extname='PRIMARY',
-                        comment='Bad pixel mask used'
-                    )
-
-                # Add generic metadata keywords
-                self.set_header_keyword(
-                    filename=self.products[product_name],
-                    keyword='SOFTWARE',
-                    value='niriPipe',
-                    extname='PRIMARY',
-                    comment='Data reduction software name'
-                )
-                self.set_header_keyword(
-                    filename=self.products[product_name],
-                    keyword='SOFT_VER',
-                    value='0.1',
-                    extname='PRIMARY',
-                    comment='Data reduction software version'
-                )
-                self.set_header_keyword(
-                    filename=self.products[product_name],
-                    keyword='SOFT_DOI',
-                    value='fake_doi_for_now',
-                    extname='PRIMARY',
-                    comment='Data reduction software DOI'
-                )
-            else:
-                self.logger.debug("Skipping tagging of {}.".format(
-                    product_name))
+                self.logger.debug("Checking {}".format(product_name))
+                self.logger.debug("Product file is {}".format(
+                    self.products[product_name]))
+                if not Checker._check_metadata(
+                        self.products[product_name]):
+                    raise RuntimeError(
+                        "Malformed metadata in processed_{}".format(
+                            product_key))
+                self.logger.info(
+                    "Output {} found: {}".format(
+                        product_key,
+                        self.products[product_name]))
 
         return self.products
 
-    def set_header_keyword(self, filename, keyword, value, extname, comment):
+    @staticmethod
+    def _check_metadata(file):
         """
-        Stub to make testing easier.
+        Do a quick check to make sure Tagger was run on products.
         """
-        self.logger.info(
-            "Setting {} in {} to {}.".format(keyword, filename, value))
-        fits.setval(
-                filename, keyword, value=value,
-                extname=extname, comment=comment)
+        return (fits.getval(file, 'SOFTWARE', extname='PRIMARY') == 'niriPipe')
