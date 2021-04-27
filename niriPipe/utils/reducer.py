@@ -247,10 +247,12 @@ class Reducer:
             self.logger.debug("Turning off dark correction.")
             dragons_reduce.uparms.append(('darkCorrect:do_dark', False))
 
-        # Provide calibrations manually to DRAGONS
-        dragons_reduce.ucals = \
-            recipe_system.utils.reduce_utils.normalize_ucals(
-                dragons_reduce.files, Reducer._pretty_string(self.products))
+        # Provide calibrations manually to DRAGONS for object frames
+        if frame_type == 'object':
+            dragons_reduce.ucals = \
+                recipe_system.utils.reduce_utils.normalize_ucals(
+                    dragons_reduce.files, Reducer._pretty_string(
+                        self.products))
 
         # Start up DRAGONS
         dragons_reduce.runr()
