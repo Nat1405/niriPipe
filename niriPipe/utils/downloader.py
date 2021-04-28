@@ -71,7 +71,6 @@ import re
 import hashlib
 import shutil
 import glob
-import datetime
 import astrodata
 import gemini_instruments  # noqa: F401
 import niriPipe.utils.customLogger

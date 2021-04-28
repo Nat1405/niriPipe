@@ -64,12 +64,12 @@
 #
 #
 # ***********************************************************************
-import logging
 import astrodata  # noqa: F401
 import recipe_system.reduction.coreReduce
 import recipe_system.utils.reduce_utils
 import gempy.utils
 import os
+import niriPipe.utils.customLogger
 
 
 def raiseIfError(msg):
@@ -109,7 +109,7 @@ class Reducer:
     def __init__(self, state, table):
         self.state = state
         self.table = table
-        self.logger = logging.getLogger('{}.{}'.format(
+        self.logger = niriPipe.utils.customLogger.get_logger('{}.{}'.format(
             self.__module__, self.__class__.__name__))
 
         self.products = {

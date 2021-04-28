@@ -64,9 +64,9 @@
 #
 #
 # ***********************************************************************
-import logging
 import os
 import astropy.io.fits as fits
+import niriPipe.utils.customLogger
 
 
 class Tagger:
@@ -83,7 +83,7 @@ class Tagger:
     def __init__(self, products, state):
         self.products = products
         self.state = state
-        self.logger = logging.getLogger('{}.{}'.format(
+        self.logger = niriPipe.utils.customLogger.get_logger('{}.{}'.format(
             self.__module__, self.__class__.__name__))
 
     def run(self):

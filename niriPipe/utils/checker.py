@@ -64,9 +64,9 @@
 #
 #
 # ***********************************************************************
-import logging
 import astropy.io.fits as fits
 import niriPipe.utils.tagger
+import niriPipe.utils.customLogger
 
 
 class Checker:
@@ -76,7 +76,7 @@ class Checker:
     def __init__(self, products, state):
         self.products = products
         self.state = state
-        self.logger = logging.getLogger('{}.{}'.format(
+        self.logger = niriPipe.utils.customLogger.get_logger('{}.{}'.format(
             self.__module__, self.__class__.__name__))
         self.keys = niriPipe.utils.tagger.Tagger.keys
 

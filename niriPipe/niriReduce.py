@@ -8,9 +8,7 @@ import niriPipe.utils.reducer
 import niriPipe.utils.tagger
 import niriPipe.utils.checker
 import logging
-import os
 import json
-import glob
 
 
 module_logger = niriPipe.utils.customLogger.get_logger(__name__)
