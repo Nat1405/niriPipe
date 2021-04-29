@@ -65,6 +65,7 @@
 #
 # ***********************************************************************
 import astropy.io.fits as fits
+import os
 import niriPipe.utils.tagger
 import niriPipe.utils.customLogger
 
@@ -102,6 +103,16 @@ class Checker:
                     "Output {} found: {}".format(
                         product_key,
                         self.products[product_name]))
+            else:
+                self.logger.debug("Skipping checking of {}.".format(
+                    product_name))
+                # If a product isn't required but exists, something weird
+                # might be going on. Raise an error if that happens.
+                if self.products[product_name] and \
+                        os.path.exists(self.products[product_name]):
+                    raise RuntimeError(
+                        "{} not required but {} exists on disk!".format(
+                            product_name, self.products[product_name]))
 
         return self.products
 

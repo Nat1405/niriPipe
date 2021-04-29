@@ -70,7 +70,7 @@ from unittest.mock import patch
 import pytest
 import os
 import logging
-from niriPipe.utils.tagger import Tagger
+from niriPipe.utils.checker import Checker
 import niriPipe.utils.customLogger
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -81,6 +81,13 @@ TESTDATA_DIR = os.path.join(THIS_DIR, 'data')
 # check DEBUG log messages in pytests.
 niriPipe.utils.customLogger.enable_propagation()
 niriPipe.utils.customLogger.set_level(logging.DEBUG)
+
+
+def raise_exception(*args, **kwargs):
+    """
+    Raises an exception.
+    """
+    raise IOError('not found')
 
 
 def get_state(
@@ -107,7 +114,7 @@ def get_products(
         processed_bpm='/fake/path/N2019_bpm.fits',
         processed_stack='/fake/path/N2019_stack.fits'):
     """
-    The Tagger takes a dictionary of reduction products as input,
+    The Checker takes a dictionary of reduction products as input,
     and raises an error if something goes wrong.
     """
 
@@ -121,9 +128,9 @@ def get_products(
     return products
 
 
-class TestTagger(unittest.TestCase):
+class TestChecker(unittest.TestCase):
     """
-    Test the Tagger class.
+    Test the Checker class.
     """
     @pytest.fixture(autouse=True)
     def initdir(self, tmpdir):
@@ -136,71 +143,140 @@ class TestTagger(unittest.TestCase):
         """
         self._caplog = caplog
 
-    def test_tagger_skip_tagging(self):
+    def test_checker_skip_all_pass(self):
         """
-        Skip tagging of products that aren't required.
+        If no products required and nothing on disk, check should pass.
         """
-        products = get_products(processed_stack=None)
-
         self._caplog.clear()
-        tagger = Tagger(
-                products=products,
-                state=get_state(
-                        min_objects='1',
-                        min_flats='0',
-                        min_longdarks='1',
-                        min_shortdarks='0'
-                    )
+
+        state = get_state(
+                min_objects='0',
+                min_flats='0',
+                min_longdarks='0',
+                min_shortdarks='0'
         )
-        with patch('astropy.io.fits.setval'):
-            with self._caplog.at_level(logging.DEBUG):
-                tagger.run()
 
-        assert "Skipping tagging of processed_flat" in self._caplog.text
-        assert "Skipping tagging of processed_bpm" in self._caplog.text
-
-    def test_tagger_good_stack_no_cals(self):
-        """
-        If 'output_stack' exists but no other products present,
-        just add generic metadata keywords (SOFTWARE, SOFT_VER, SOFT_DOI)
-        """
         products = get_products(
+            processed_stack=None,
             processed_flat=None,
             processed_dark=None,
             processed_bpm=None
         )
 
-        self._caplog.clear()
-        tagger = Tagger(
-                products=products,
-                state=get_state(
-                    min_flats='0',
-                    min_longdarks='0',
-                    min_shortdarks='0'
-                )
-        )
+        checker = Checker(state=state, products=products)
         with self._caplog.at_level(logging.DEBUG):
-            with patch('astropy.io.fits.setval'):
-                tagger.run()
+            checker.run()
 
-        assert 'Setting SOFTWARE' in self._caplog.text
-        assert 'Setting SOFT_VER' in self._caplog.text
-        assert 'Setting SOFT_DOI' in self._caplog.text
+        assert 'Skipping checking of processed_stack' in self._caplog.text
+        assert 'Skipping checking of processed_flat' in self._caplog.text
+        assert 'Skipping checking of processed_dark' in self._caplog.text
+        assert 'Skipping checking of processed_bpm' in self._caplog.text
 
-    def test_tagger_good_stack_bpm_present(self):
+    def test_checker_skip_all_fail(self):
         """
-        If 'output_stack' exists and 'processed_bpm' exists,
-        add the 'BPMIMG' header keyword.
+        If no products required, and products are still present, something
+        weird might be going on. Checker should raise an exception.
         """
+        self._caplog.clear()
+
+        state = get_state(
+                min_objects='0',
+                min_flats='0',
+                min_longdarks='0',
+                min_shortdarks='0'
+        )
+
+        products = get_products()
+
+        checker = Checker(state=state, products=products)
+        with self._caplog.at_level(logging.DEBUG):
+            with patch('os.path.exists', return_value=True):
+                with pytest.raises(RuntimeError) as exc_info:
+                    checker.run()
+
+        assert 'processed_stack not required' in str(exc_info.value)
+
+    def test_checker_skip_some_pass(self):
+        """
+        If only some products required, check those and skip the others.
+        """
+        self._caplog.clear()
+
+        state = get_state(
+                min_objects='1',
+                min_flats='1',
+                min_longdarks='0',
+                min_shortdarks='0'
+        )
+
         products = get_products(
-            processed_flat=None,
-            processed_dark=None
+            processed_dark=None,
+            processed_bpm=None
         )
 
-        self._caplog.clear()
-        tagger = Tagger(products=products, state=get_state())
+        checker = Checker(state=state, products=products)
         with self._caplog.at_level(logging.DEBUG):
-            with patch('astropy.io.fits.setval'):
-                tagger.run()
+            with patch('os.path.exists', return_value=True):
+                with patch('astropy.io.fits.getval', return_value='niriPipe'):
+                    checker.run()
 
-        assert 'Setting BPMIMG' in self._caplog.text
+        assert 'Output stack found:' in self._caplog.text
+        assert 'Output flat found:' in self._caplog.text
+        assert 'Skipping checking of processed_dark' in self._caplog.text
+        assert 'Skipping checking of processed_bpm' in self._caplog.text
+
+    def test_checker_all_pass(self):
+        """
+        Checker should pass if all products present with proper metadata.
+        """
+        self._caplog.clear()
+
+        # All products required by default
+        state = get_state()
+        products = get_products()
+
+        checker = Checker(state=state, products=products)
+        with self._caplog.at_level(logging.DEBUG):
+            with patch('os.path.exists', return_value=True):
+                with patch('astropy.io.fits.getval', return_value='niriPipe'):
+                    checker.run()
+
+        assert 'Output stack found:' in self._caplog.text
+        assert 'Output flat found:' in self._caplog.text
+        assert 'Output dark found:' in self._caplog.text
+        assert 'Output bpm found:' in self._caplog.text
+
+    def test_checker_one_bad_missing_file(self):
+        """
+        If one required product is missing, checker should raise an error.
+        """
+        self._caplog.clear()
+
+        state = get_state()
+        products = get_products(processed_stack=None)
+
+        checker = Checker(state=state, products=products)
+
+        with patch('astropy.io.fits.getval', raise_exception):
+            with pytest.raises(IOError) as exc_info:
+                checker.run()
+
+        assert 'not found' in str(exc_info.value)
+
+    def test_checker_one_bad_metadata(self):
+        """
+        If one required product has bad metadata, checker should raise an
+        error.
+        """
+        self._caplog.clear()
+
+        state = get_state()
+        products = get_products()
+
+        checker = Checker(state=state, products=products)
+
+        with patch('astropy.io.fits.getval', return_value='bad_value'):
+            with pytest.raises(RuntimeError) as exc_info:
+                checker.run()
+
+        assert 'Malformed metadata' in str(exc_info.value)
