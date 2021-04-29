@@ -120,7 +120,7 @@ class Tagger:
                 self.set_header_keyword(
                     filename=self.products[product_name],
                     keyword='SOFT_DOI',
-                    value='fake_doi_for_now',
+                    value='10.5281/zenodo.4729003',
                     extname='PRIMARY',
                     comment='Data reduction software DOI'
                 )
