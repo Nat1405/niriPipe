@@ -158,7 +158,7 @@ class Finder:
         """
         object_query = self.query_prefix + \
             "AND Observation.type = 'OBJECT' " + \
-            "AND Observation.observationID LIKE '{}%' ".format(
+            "AND Observation.observationID LIKE '{}-%' ".format(
                 self.state['current_stack']['obs_name']) + \
             self.query_suffix
 
