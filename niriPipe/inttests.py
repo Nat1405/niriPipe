@@ -173,7 +173,8 @@ def finder_inttest():
         },
         'current_stack': {
             'obs_name': 'GN-2019A-FT-108-12',
-            'proposal_id': 'GN-2019A-FT-108'
+            'proposal_id': 'GN-2019A-FT-108',
+            'bandpass': 'J'
         }
     }
 
@@ -246,7 +247,8 @@ def finder_inttest():
         },
         'current_stack': {
             'obs_name': 'GN-2007B-Q-85-24',
-            'proposal_id': 'GN-2007B-Q-85'
+            'proposal_id': 'GN-2007B-Q-85',
+            'bandpass': 'K(prime)'
         }
     }
 
@@ -282,6 +284,7 @@ def run_inttest():
     args.intent = ['science']
     args.proposal_id = []
     args.verbose = True
+    args.bandpass = ['J']
 
     # Create a custom bad pixel mask, just to test all code paths.
     with open('custom_config.cfg', 'w') as f:
@@ -314,7 +317,7 @@ def run_reduce_inttest():
     """
     module_logger.info("Starting reduce test.")
     state = get_initial_state(
-        obs_name=['GN-2019A-FT-108-12'], intent=['science'])
+        obs_name=['GN-2019A-FT-108-12'], intent=['science'], bandpass='J')
     state['config']['DATAFINDER']['min_shortdarks'] = 1
 
     module_logger.debug("Initial state:")
