@@ -3,7 +3,7 @@ import configparser
 import pkg_resources
 
 
-def get_initial_state(obs_name=None, intent=None, configfile=None):
+def get_initial_state(obs_name=None, intent=None, configfile=None, bandpass=None):
     """
     Get initial pipeline state.
 
@@ -19,6 +19,7 @@ def get_initial_state(obs_name=None, intent=None, configfile=None):
         state['current_stack']['proposal_id'] = \
             '-'.join(obs_name[0].split('-')[:-1])
         state['current_stack']['intent'] = intent[0]
+        state['current_stack']['bandpass'] = bandpass[0]
     except IndexError:
         raise ValueError("Insufficient metadata provided for stack.")
 

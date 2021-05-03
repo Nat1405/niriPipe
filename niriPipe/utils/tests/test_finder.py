@@ -112,7 +112,8 @@ def get_state(
                 }
             },
             'current_stack': {
-                'obs_name': 'GN-XXXXX-X-X-X'
+                'obs_name': 'GN-XXXXX-X-X-X',
+                'bandpass': 'J'
             }
     }
 
@@ -258,7 +259,7 @@ class TestFinder(unittest.TestCase):
 
         state = get_state(stack_metadata={
             'mjd_date': 10000,
-            'filter': 'J',
+            'bandpass': 'J',
             'proposal_id': 'GN-XXXXX-X-X',
             'camera': 'f-6'})
 
@@ -288,7 +289,7 @@ class TestFinder(unittest.TestCase):
 
         state = get_state(stack_metadata={
             'mjd_date': 10000,
-            'filter': 'J',
+            'bandpass': 'J',
             'proposal_id': 'GN-XXXXX-X-X',
             'camera': 'f-32'})
 

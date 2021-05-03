@@ -170,8 +170,6 @@ class Finder:
         # Some metadata isn't available from CADC, so use cadc-data
         # to get header for file and set it that way.
         try:
-            self.state['current_stack']['filter'] = \
-                object_table['energy_bandpassName'][0]
             self.state['current_stack']['exptime'] = \
                 object_table['time_exposure'][0]
             self.state['current_stack']['mjd_date'] = \
@@ -202,7 +200,7 @@ class Finder:
             "AND Plane.time_bounds_lower <= '{:.4f}' ".format(
                  self.state['current_stack']['mjd_date'] + 14) + \
             "AND Plane.energy_bandpassName = '{}' ".format(
-                self.state['current_stack']['filter']) + \
+                self.state['current_stack']['bandpass']) + \
             self.query_suffix
 
         flat_table = self._find_frames(flat_query, 'flat')

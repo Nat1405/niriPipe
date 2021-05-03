@@ -32,7 +32,8 @@ def run_main(args):
     state = niriPipe.utils.state.get_initial_state(
         obs_name=args.obsID,
         intent=args.intent,
-        configfile=configfile
+        configfile=configfile,
+        bandpass=args.bandpass
     )
     module_logger.debug("Initial state:")
     module_logger.debug(json.dumps(state, sort_keys=True, indent=4))
@@ -110,6 +111,24 @@ def niri_reduce_main():
     parser_run.add_argument('intent', metavar='INTENT', type=str, nargs=1,
                             choices=['science', 'calibration'],
                             help='Type of stack (science or calibration).')
+    parser_run.add_argument('bandpass', metavar='BANDPASS', type=str, nargs=1,
+                            choices=[
+                                'Br(alpha)', 'Br(alpha)Con', 'Br(gamma)',
+                                'CH4(long)', 'CH4(short)', 'CH4ice(2275)',
+                                'CH4long_G0229', 'CH4short_G0228',
+                                'CO_2-0_(bh)', 'Fell', 'H', 'H-con(157)',
+                                'H20_ice', 'H20_ice(2045)', 'H2_1-0_S1',
+                                'H2_2-1_S1', 'H2v=1-0s1&k',
+                                'H2v=1-0s1G0216&K', 'H2v=2-1s1_G0220',
+                                'H_order_sort', 'Hel', 'Hel(2p2s)',
+                                'J', 'J_order_sort', 'Jcon(1065)',
+                                'Jcon(112)', 'Jcon(121)', 'K', 'K(prime)',
+                                'K(short)', 'K_order_sort', 'Kcon(209)',
+                                'Kcon(227)', 'L(prime)', 'L_order_sort',
+                                'M(prime)', 'M_order_sort', 'Pa(beta)',
+                                'Y', 'hydrocarb'
+                            ],
+                            help='NIRI bandpass (filter) of stack.')
     parser_run.add_argument('-c', '--config', type=str,
                             nargs=1, help='User provided config file.')
     parser_run.add_argument('-v', '--verbose', action='store_true',

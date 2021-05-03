@@ -104,7 +104,8 @@ def get_state_table(
     state = get_initial_state(
             obs_name=['GN-FOO-BAR'],
             intent=intent,
-            configfile=None)
+            configfile=None,
+            bandpass='K')
 
     # Override default configuration here
     if min_objects:
