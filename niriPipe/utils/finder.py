@@ -64,13 +64,13 @@
 #
 #
 # ***********************************************************************
-import logging
 import astropy.table
 from astroquery.cadc import Cadc
 import re
 import io
 from cadcutils import net
 from cadcdata import CadcDataClient
+import niriPipe.utils.customLogger
 
 
 class Finder:
@@ -80,8 +80,9 @@ class Finder:
 
     def __init__(self, state):
         self.state = state
-        self.logger = logging.getLogger('{}.{}'.format(
-            self.__module__, self.__class__.__name__))
+        self.logger = niriPipe.utils.customLogger.get_logger(
+            '{}.{}'.format(
+                self.__module__, self.__class__.__name__))
         try:
             self._log_basic_constraints()
         except KeyError as e:
@@ -89,10 +90,19 @@ class Finder:
                 "Insufficient constraints provided; " +
                 "is the config file complete?")
             raise e
+        # Every table used in processing should have these columns.
+        self.min_columns = [
+            'publisherID', 'productID', 'energy_bandpassName',
+            'time_bounds_lower', 'time_exposure', 'type', 'intent',
+            'proposal_id', 'observationID'
+        ]
+        self.col_dtypes = [
+            object, str, str,
+            float, float, str, str,
+            str, str
+        ]
         self.query_prefix = \
-            "SELECT publisherID, productID, energy_bandpassName, " + \
-            "time_bounds_lower, time_exposure, type, intent, " + \
-            "observationID, proposal_id " + \
+            "SELECT " + ', '.join(self.min_columns) + " " + \
             "FROM caom2.Plane AS Plane " + \
             "JOIN caom2.Observation AS Observation " + \
             "ON Plane.obsID = Observation.obsID " + \
@@ -113,11 +123,12 @@ class Finder:
         the same integration time as science frames), and optional short darks
         (1 second darks used to generate a bad pixel mask).
         """
+
         return astropy.table.vstack([
-            self._find_objects(),
-            self._segment(self._find_flats()),
-            self._segment(self._find_longdarks()),
-            self._segment(self._find_shortdarks())
+            self._mark_as('object', self._find_objects()),
+            self._mark_as('flat', self._segment(self._find_flats())),
+            self._mark_as('longdark', self._segment(self._find_longdarks())),
+            self._mark_as('shortdark', self._segment(self._find_shortdarks()))
         ])
 
     def _log_basic_constraints(self):
@@ -146,7 +157,8 @@ class Finder:
         Should be called before any of the find_cal_* methods.
         """
         object_query = self.query_prefix + \
-            "AND Observation.observationID LIKE '{}%' ".format(
+            "AND Observation.type = 'OBJECT' " + \
+            "AND Observation.observationID LIKE '{}-%' ".format(
                 self.state['current_stack']['obs_name']) + \
             self.query_suffix
 
@@ -158,8 +170,6 @@ class Finder:
         # Some metadata isn't available from CADC, so use cadc-data
         # to get header for file and set it that way.
         try:
-            self.state['current_stack']['filter'] = \
-                object_table['energy_bandpassName'][0]
             self.state['current_stack']['exptime'] = \
                 object_table['time_exposure'][0]
             self.state['current_stack']['mjd_date'] = \
@@ -185,10 +195,12 @@ class Finder:
         """
         flat_query = self.query_prefix + \
             "AND Observation.type = 'FLAT' " + \
-            "AND Observation.proposal_id = '{}' ".format(
-                self.state['current_stack']['proposal_id']) + \
+            "AND Plane.time_bounds_lower >= '{:.4f}' ".format(
+                 self.state['current_stack']['mjd_date'] - 14) + \
+            "AND Plane.time_bounds_lower <= '{:.4f}' ".format(
+                 self.state['current_stack']['mjd_date'] + 14) + \
             "AND Plane.energy_bandpassName = '{}' ".format(
-                self.state['current_stack']['filter']) + \
+                self.state['current_stack']['bandpass']) + \
             self.query_suffix
 
         flat_table = self._find_frames(flat_query, 'flat')
@@ -196,8 +208,11 @@ class Finder:
         # Exclude flats that don't use same camera as objects
         self.logger.info("Adding camera information to flats.")
         try:
-            cam_column = [self._metadata_from_header(
-                x['productID']+'.fits', 'CAMERA') for x in flat_table]
+            cam_column = astropy.table.Column(
+                data=[self._metadata_from_header(
+                    x['productID']+'.fits', 'CAMERA') for x in flat_table],
+                dtype=str
+            )
             flat_table.add_column(cam_column, name='camera')
             self.logger.debug("Done getting camera information.")
             mask = (flat_table['camera'] !=
@@ -210,6 +225,10 @@ class Finder:
             self.logger.warning(
                 "Failed to make sure flats had same camera as objects.")
 
+        # Make sure we still have enough flats
+        self._check_sufficient_frames(
+            key='min_flats', frame_type='flat', table=flat_table)
+
         return flat_table
 
     def _find_longdarks(self):
@@ -220,8 +239,10 @@ class Finder:
         """
         longdark_query = self.query_prefix + \
             "AND Observation.type = 'DARK' " + \
-            "AND Observation.proposal_id = '{}' ".format(
-                self.state['current_stack']['proposal_id']) + \
+            "AND Plane.time_bounds_lower >= '{:.4f}' ".format(
+                 self.state['current_stack']['mjd_date'] - 14) + \
+            "AND Plane.time_bounds_lower <= '{:.4f}' ".format(
+                 self.state['current_stack']['mjd_date'] + 14) + \
             "AND Plane.time_exposure = '{}' ".format(
                 self.state['current_stack']['exptime']) + \
             self.query_suffix
@@ -237,9 +258,9 @@ class Finder:
         shortdark_query = self.query_prefix + \
             "AND Observation.type = 'DARK' " + \
             "AND Plane.time_bounds_lower >= '{:.4f}' ".format(
-                self.state['current_stack']['mjd_date'] - 2) + \
+                self.state['current_stack']['mjd_date'] - 7) + \
             "AND Plane.time_bounds_lower <= '{:.4f}' ".format(
-                self.state['current_stack']['mjd_date'] + 2) + \
+                self.state['current_stack']['mjd_date'] + 7) + \
             "AND Plane.time_exposure >= '0.99' " + \
             "AND Plane.time_exposure <= '1.01' " + \
             self.query_suffix
@@ -255,27 +276,25 @@ class Finder:
         when appropriate, or raises an exception if insufficient files
         found.
         """
-        self.logger.debug("Finding {} frames.".format(frame_type))
-        self.logger.debug("{} query: \n{}".format(frame_type, query))
         key = 'min_{}s'.format(frame_type)
+        if int(self.state['config']['DATAFINDER'][key]):
+            self.logger.debug("Finding {} frames.".format(frame_type))
+        else:
+            self.logger.debug(
+                "No {} frames requested; skipping query.".format(frame_type))
+            return astropy.table.Table(
+                names=self.min_columns,
+                dtype=self.col_dtypes)
+        self.logger.debug("{} query: \n{}".format(frame_type, query))
         try:
             table = self._do_query_retry_wrapper(query, 1)
         except Exception as e:
-            if int(self.state['config']['DATAFINDER'][key]):
-                self.logger.critical("{} query failed.".format(frame_type))
-                raise e
-            else:
-                self.logger.debug("Found no frames; returning empty table.")
-                return astropy.table.Table(names=(
-                    'publisherID', 'productID', 'time_bounds_lower',
-                    'observationID'))
+            self.logger.critical("{} query failed.".format(frame_type))
+            raise e
 
-        if len(table) < \
-                int(self.state['config']['DATAFINDER'][key]):
-            raise RuntimeError("Required {} {} frames; found {}.".format(
-                self.state['config']['DATAFINDER'][key],
-                frame_type,
-                len(table)))
+        self._check_sufficient_frames(
+            key=key, frame_type=frame_type, table=table)
+
         self.logger.info("Found {} {} frames.".format(len(table), frame_type))
         return table
 
@@ -303,6 +322,20 @@ class Finder:
         job.run().wait()
         job.raise_if_error()
         return job.fetch_result().to_table()
+
+    def _check_sufficient_frames(self, key, frame_type, table):
+        """
+        Make sure a table has sufficient number of frames of a given
+        type, else raise a RuntimeError.
+        """
+        if ((not table) and int(self.state['config']['DATAFINDER'][key])) or \
+                (len(table) < int(self.state['config']['DATAFINDER'][key])):
+
+            table_length = 0 if not table else len(table)
+            raise RuntimeError("Required {} {} frames; found {}.".format(
+                self.state['config']['DATAFINDER'][key],
+                frame_type,
+                table_length))
 
     def _metadata_from_header(self, productID, card):  # pragma: no cover
         """
@@ -339,8 +372,13 @@ class Finder:
         The failure of segmentation might cause downstream errors, so log
         a warning if it fails.
         """
-        self.logger.debug(
-            "Segmentation starting with {} frames.".format(len(in_table)))
+        # If the in_table is empty, skip segmentation on it.
+        if len(in_table):
+            self.logger.debug(
+                "Segmentation starting with {} frames.".format(len(in_table)))
+        else:
+            self.logger.debug("Empty input table; skipping segmentation.")
+            return in_table
         # Do segmentation based on state['current_stack']['mjd+date']
 
         # Make a new column with the observation name
@@ -393,3 +431,23 @@ class Finder:
         self.logger.debug(
             "Segmentation finished with {} frames.".format(len(out_table)))
         return out_table
+
+    def _mark_as(self, in_type, table):
+        """
+        Add a column (niriPipe_type) to all entries of table.
+
+        Used to identify flats, object frames, darks, etc in
+        downstream processing (keeps logic to identify which
+        frames are which in Finder).
+
+        """
+        self.logger.debug(
+            "Marking rows in table as {} frames.".format(in_type))
+
+        niriPipe_type_column = astropy.table.Column(
+            data=[in_type for i in range(len(table))],
+            dtype=str
+        )
+        table.add_column(niriPipe_type_column, name='niriPipe_type')
+
+        return table

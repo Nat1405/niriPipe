@@ -124,6 +124,11 @@ jobs:
         run: |
           conda run -n dragons niriPipe test finder
 
+      - name: Container integration test of reducer.
+        run: |
+          rm -r rawData && conda run -n dragons niriPipe test reduce
+
       - name: Container integration test of run command.
         run: |
-          rm -r rawData && conda run -n dragons niriPipe test run
+          rm -r rawData N2* calibrations/ && \
+          conda run -n dragons niriPipe test run
