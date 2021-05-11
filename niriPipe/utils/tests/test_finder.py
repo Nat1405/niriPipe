@@ -72,9 +72,14 @@ import astropy.table
 import os
 import logging
 from niriPipe.utils.finder import Finder
+import niriPipe.utils.customLogger
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 TESTDATA_DIR = os.path.join(THIS_DIR, 'data')
+
+# Need to enable propagation for log capturing to work
+niriPipe.utils.customLogger.enable_propagation()
+niriPipe.utils.customLogger.set_level(logging.DEBUG)
 
 
 def raise_exception():
@@ -89,7 +94,8 @@ def get_state(
         min_flats=1,
         min_longdarks=1,
         min_shortdarks=1,
-        stack_metadata=None
+        stack_metadata=None,
+        max_tries=30
         ):
     """
     Return appliation state dictionary.
@@ -101,11 +107,13 @@ def get_state(
                     'min_objects': min_objects,
                     'min_flats': min_flats,
                     'min_longdarks': min_longdarks,
-                    'min_shortdarks': min_shortdarks
+                    'min_shortdarks': min_shortdarks,
+                    'max_tries': max_tries
                 }
             },
             'current_stack': {
-                'obs_name': 'GN-XXXXX-X-X-X'
+                'obs_name': 'GN-XXXXX-X-X-X',
+                'bandpass': 'J'
             }
     }
 
@@ -148,11 +156,12 @@ class TestFinder(unittest.TestCase):
                     ['GN-CAL20190404-10-013'],
                     [1.0],
                     ['J'],
-                    [58000.01]],
+                    [58000.01],
+                    ['GN-CAL20190404']],
                 names=[
                     'productID', 'publisherID', 'observationID',
                     'time_exposure', 'energy_bandpassName',
-                    'time_bounds_lower']),
+                    'time_bounds_lower', 'proposal_id']),
             astropy.table.Table(
                 [
                     ['flat1', 'flat2'],
@@ -229,19 +238,65 @@ class TestFinder(unittest.TestCase):
                 finder._find_objects()
         assert 'Failed to set stack metadata' in self._caplog.text
 
-    @patch.object(Finder, '_find_frames', return_value=None)
-    def test_find_flats(self, mock):
+    @patch.object(Finder, '_find_frames', return_value=astropy.table.Table([
+            ['flat1', 'flat2'],
+            [
+                'ivo://cadc.nrc.ca/GEMINI?GN-2019B-FT-108/N20_flat',
+                'ivo://cadc.nrc.ca/GEMINI?GN-2019B-FT-108/N20_flat2'
+            ],
+            ['GN-2019B-FT-108-001', 'GN-2019B-FT-108-002'],
+            [58000, 58000]],
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower']))
+    @patch.object(Finder, '_metadata_from_header', side_effect=['f-32', 'f-6'])
+    def test_find_flats(self, mock1, mock2):
         """
         Make sure flats are comparing camera information.
+
+        Should filter out the first flat, and return the second flat.
         """
         self._caplog.clear()
 
-        state = get_state(stack_metadata={'mjd_date': 10000, 'filter': 'J'})
+        state = get_state(stack_metadata={
+            'mjd_date': 10000,
+            'bandpass': 'J',
+            'proposal_id': 'GN-XXXXX-X-X',
+            'camera': 'f-6'})
 
         finder = Finder(state)
-        with self._caplog.at_level(logging.WARNING):
+        with self._caplog.at_level(logging.DEBUG):
+            flats = finder._find_flats()
+
+        assert '1 flat frames remain after matching cam' in self._caplog.text
+        assert 'flat1' not in flats['productID']
+        assert 'flat2' in flats['productID']
+
+    @patch.object(Finder, '_find_frames', return_value=astropy.table.Table([
+            ['foo'],
+            ['ivo://cadc.nrc.ca/GEMINI?GN-2019B-FT-108/N20_flat'],
+            ['GN-2019B-FT-108-001'],
+            [58000]],
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower']))
+    @patch.object(Finder, '_metadata_from_header', return_value='f-6')
+    def test_find_flats_after_camera(self, mock1, mock2):
+        """
+        If sufficient flats are found, but then insufficient flats remain
+        after selecting those with the same camera as the object frames,
+        raise a RuntimeError for insufficient flats.
+        """
+        self._caplog.clear()
+
+        state = get_state(stack_metadata={
+            'mjd_date': 10000,
+            'bandpass': 'J',
+            'proposal_id': 'GN-XXXXX-X-X',
+            'camera': 'f-32'})
+
+        finder = Finder(state)
+        with pytest.raises(RuntimeError) as exc_info:
             finder._find_flats()
-        assert 'Failed to make sure' in self._caplog.text
+        assert 'flat frames; found ' in str(exc_info.value)
 
     def test_find_frames(self):
         """
@@ -259,15 +314,14 @@ class TestFinder(unittest.TestCase):
                     finder._find_frames('fake_query', 'object')
         assert 'object query failed' in self._caplog.text
 
-        # However, if TAP raises exception for optional frames, shouldn't
-        # raise an error.
+        # Skip finding optional frames.
         state = get_state(min_objects=0)
 
         with self._caplog.at_level(logging.DEBUG):
-            with patch.object(Finder, '_do_query', raise_exception):
-                finder = Finder(state)
-                finder._find_frames('fake_query', 'object')
-        assert 'Found no frames; returning empty' in self._caplog.text
+            finder = Finder(state)
+            finder._find_frames('fake_query', 'object')
+        assert 'No object frames requested; skipping query.' in \
+            self._caplog.text
 
         # If TAP returns less frames than required, raise an exception.
         state = get_state(min_objects=3)
@@ -278,6 +332,22 @@ class TestFinder(unittest.TestCase):
             with pytest.raises(RuntimeError) as exc_info:
                 finder._find_frames('fake_query', 'object')
         assert 'Required 3 object' in str(exc_info.value)
+
+    @patch('niriPipe.utils.finder.Finder._do_query', raise_exception)
+    def test_do_query_exceed_retries(self):
+        """
+        ... But shouldn't retry forever.
+        """
+        self._caplog.clear()
+
+        state = get_state()
+        finder = Finder(state)
+        with self._caplog.at_level(logging.WARNING):
+            with pytest.raises(RuntimeError):
+                finder._find_frames('fake_query', 'object')
+
+        assert 'attempt 2' in self._caplog.text
+        assert 'object query failed.' in self._caplog.text
 
     def test_segmentation(self):
         """
@@ -294,10 +364,10 @@ class TestFinder(unittest.TestCase):
                    'time_bounds_lower'])
 
         self._caplog.clear()
-        with self._caplog.at_level(logging.WARNING):
+        with self._caplog.at_level(logging.DEBUG):
             finder = Finder(state)
         assert len(finder._segment(empty_table)) == 0
-        assert 'Segmentation failed.' in self._caplog.text
+        assert 'skipping segmentation.' in self._caplog.text
 
         # A one-row table should just be returned
         state = get_state(stack_metadata={'mjd_date': 57000})
@@ -332,3 +402,35 @@ class TestFinder(unittest.TestCase):
             finder = Finder(state)
         assert len(finder._segment(bad_one_row_table)) == 1
         assert 'Unable to parse observationID' in self._caplog.text
+
+    def test_mark_as(self):
+        """
+        _mark_as adds an extra column to tables to identify frames
+        as object, flat, longdark, or shortdark.
+
+        The possible flows are:
+            - empty table provided; add column but no rows and return table.
+            - n-row table; add column and rows with type.
+        """
+        state = get_state()
+        finder = Finder(state)
+        # Empty table test
+        empty_table = astropy.table.Table(
+            [[], [], [], []],
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower'])
+        out_table = finder._mark_as('flat', empty_table)
+        assert 'niriPipe_type' in out_table.columns
+
+        two_row_table = astropy.table.Table([
+            ['foo', 'bar'],
+            ['ivo://bad_publisher_id', 'bad_id_2'],
+            ['GN-FOO', 'GN-BAR'],
+            [58000, 10000]],
+            names=['productID', 'publisherID', 'observationID',
+                   'time_bounds_lower'])
+
+        two_row_table = finder._mark_as('object', two_row_table)
+        assert two_row_table[1]['niriPipe_type'] == 'object'
+
+

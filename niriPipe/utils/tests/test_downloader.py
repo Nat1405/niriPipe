@@ -66,22 +66,26 @@
 # ***********************************************************************
 
 import unittest
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 import pytest
 import astropy.table
 import os
 import shutil
 import logging
-import datetime
 from niriPipe.utils.downloader import Downloader
+import niriPipe.utils.customLogger
 
 THIS_DIR = os.path.dirname(os.path.realpath(__file__))
 TESTDATA_DIR = os.path.join(THIS_DIR, 'data')
 
 NETWORK_TESTS = True
 
-SKIP_STRING = 'Skipping Gemini metadata check'
 BAD_DATE_STRING = 'Unable to get date'
+
+
+# Need to enable propagation for log capturing to work
+niriPipe.utils.customLogger.enable_propagation()
+niriPipe.utils.customLogger.set_level(logging.DEBUG)
 
 
 class MockResponse:
@@ -108,7 +112,7 @@ def get_state():
         }
 
 
-def throw_exception():
+def throw_exception(*args, **kwargs):
     raise IOError
 
 
@@ -283,147 +287,3 @@ class TestDownloader(unittest.TestCase):
                 response,
                 filename='fake_file.txt'
             )
-
-    # Test querying Gemini observatory archive for
-    # bad metadata.
-
-    # Several cases possible:
-    # - No files provided. Should skip metadata check.
-    # - Files provided, but can't find date for any.
-    #   Should skip metadata check.
-    # - One file has a valid date: should do metatdata
-    #   check for that file.
-    # - N files have valid date: should do metadata check
-    #   for all of them.
-
-    @patch.object(Downloader, '_find_fits', return_value=[])
-    def test__check_for_MD_files_1(self, mock):
-        """
-        No files found. Skip metadata check.
-        """
-        state = get_state()
-        self._caplog.clear()
-
-        d = Downloader(table=None, state=state)
-        with self._caplog.at_level(logging.WARNING):
-            d._check_for_MD_files()
-            assert SKIP_STRING in self._caplog.text
-
-    @patch.multiple('niriPipe.utils.downloader.Downloader',
-                    _find_fits=Mock(return_value=['fake_fits.fits']),
-                    _remove_file=Mock(),
-                    _get_date=throw_exception)
-    def test__check_for_MD_files_2(self, **mocks):
-        """
-        Files found, but unable to get dates. Skip metadata check.
-        """
-        state = get_state()
-        self._caplog.clear()
-
-        d = Downloader(table=None, state=state)
-        with self._caplog.at_level(logging.WARNING):
-            d._check_for_MD_files()
-        assert BAD_DATE_STRING in self._caplog.text
-        assert SKIP_STRING in self._caplog.text
-
-    @patch('requests.get', throw_exception)
-    @patch.multiple('niriPipe.utils.downloader.Downloader',
-                    _find_fits=Mock(return_value=['fake_file.fits']),
-                    _get_date=Mock(
-                        return_value=datetime.date(
-                            2017, 5, 14)))
-    def test__check_for_MD_files_3(self, **mocks):
-        """
-        Files found, one has valid date, but Gemini query failed.
-        Skip metadata check.
-        """
-        state = get_state()
-        self._caplog.clear()
-
-        d = Downloader(table=None, state=state)
-        d._check_for_MD_files()
-        assert SKIP_STRING in self._caplog.text
-
-    @patch.multiple('niriPipe.utils.downloader.Downloader',
-                    _find_fits=Mock(return_value=['fake_file.fits']),
-                    _remove_file=Mock(),
-                    _file_exists=Mock(return_value=True),
-                    _get_date=Mock(
-                        return_value=datetime.date(
-                            2017, 5, 14)))
-    def test__check_for_MD_files_4(self, **mocks):
-        """
-        Single file and date found, bad metadata. Remove that file.
-        """
-        state = get_state()
-        self._caplog.clear()
-
-        response = MockResponse(
-            [
-                {
-                    "name": "fake_file.fits",
-                    "mdready": False
-                }
-            ],
-            200
-        )
-
-        d = Downloader(table=None, state=state)
-        with patch('requests.get', return_value=response):
-            with self._caplog.at_level(logging.INFO):
-                d._check_for_MD_files()
-        assert 'Removing frame fake_file.fits' in self._caplog.text
-
-    @patch.multiple('niriPipe.utils.downloader.Downloader',
-                    _find_fits=Mock(return_value=[
-                        'fake_1.fits',
-                        'fake_2.fits',
-                        'fake_3.fits',
-                        'fake_4.fits'
-                    ]),
-                    _remove_file=Mock(),
-                    _file_exists=Mock(return_value=True),
-                    _get_date=Mock(
-                        side_effect=[
-                            datetime.date(2017, 5, 18),
-                            datetime.date(2017, 5, 14),
-                            datetime.date(2017, 5, 15),
-                            datetime.date(2017, 5, 15),
-                        ]))
-    def test__check_for_MD_files_5(self, **mocks):
-        """
-        Several files found, and N have valid date; remove the
-        1 with broken metadata.
-        """
-        state = get_state()
-        self._caplog.clear()
-
-        response = MockResponse(
-            [
-                {
-                    "name": "fake_1.fits",
-                    "mdready": False
-                },
-                {
-                    "name": "fake_2.fits",
-                    "mdready": True
-                },
-                {
-                    "name": "fake_3.fits",
-                    "mdready": True
-                },
-                {
-                    "malformed_name": "fake_4.fits",
-                    "mdready": True
-                },
-            ],
-            200
-        )
-
-        d = Downloader(table=None, state=state)
-        with patch('requests.get', return_value=response):
-            with self._caplog.at_level(logging.DEBUG):
-                d._check_for_MD_files()
-        assert 'Removing frame fake_1.fits' in self._caplog.text
-        assert 'Frame fake_2.fits passed' in self._caplog.text
-        assert SKIP_STRING in self._caplog.text
