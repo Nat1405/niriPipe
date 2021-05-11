@@ -85,14 +85,14 @@ class Finder:
         try:
             self._log_basic_constraints()
         except KeyError as e:
-            logging.critical(
+            self.logger.critical(
                 "Insufficient constraints provided; " +
                 "is the config file complete?")
             raise e
         self.query_prefix = \
             "SELECT publisherID, productID, energy_bandpassName, " + \
             "time_bounds_lower, time_exposure, type, intent, " + \
-            "observationID " + \
+            "observationID, proposal_id " + \
             "FROM caom2.Plane AS Plane " + \
             "JOIN caom2.Observation AS Observation " + \
             "ON Plane.obsID = Observation.obsID " + \
@@ -165,6 +165,8 @@ class Finder:
             self.state['current_stack']['mjd_date'] = \
                 (object_table['time_bounds_lower'][0] +
                     object_table['time_bounds_lower'][0])/2
+            self.state['current_stack']['proposal_id'] = \
+                object_table['proposal_id'][0]
             self.state['current_stack']['camera'] = \
                 self._metadata_from_header(
                     object_table[0]['productID']+'.fits', card='CAMERA')
@@ -183,10 +185,8 @@ class Finder:
         """
         flat_query = self.query_prefix + \
             "AND Observation.type = 'FLAT' " + \
-            "AND Plane.time_bounds_lower >= '{}' ".format(
-                self.state['current_stack']['mjd_date'] - 2) + \
-            "AND Plane.time_bounds_lower <= '{}' ".format(
-                self.state['current_stack']['mjd_date'] + 2) + \
+            "AND Observation.proposal_id = '{}' ".format(
+                self.state['current_stack']['proposal_id']) + \
             "AND Plane.energy_bandpassName = '{}' ".format(
                 self.state['current_stack']['filter']) + \
             self.query_suffix
@@ -194,7 +194,7 @@ class Finder:
         flat_table = self._find_frames(flat_query, 'flat')
 
         # Exclude flats that don't use same camera as objects
-        self.logger.debug("Adding camera information to flats.")
+        self.logger.info("Adding camera information to flats.")
         try:
             cam_column = [self._metadata_from_header(
                 x['productID']+'.fits', 'CAMERA') for x in flat_table]
@@ -203,8 +203,9 @@ class Finder:
             mask = (flat_table['camera'] !=
                     self.state['current_stack']['camera'])
             flat_table.remove_rows(mask)
-            self.logger.debug("{} frames remain after matching camera.".format(
-                len(flat_table)))
+            self.logger.info(
+                "{} flat frames remain after matching camera.".format(
+                    len(flat_table)))
         except Exception:
             self.logger.warning(
                 "Failed to make sure flats had same camera as objects.")
@@ -219,10 +220,8 @@ class Finder:
         """
         longdark_query = self.query_prefix + \
             "AND Observation.type = 'DARK' " + \
-            "AND Plane.time_bounds_lower >= '{}' ".format(
-                self.state['current_stack']['mjd_date'] - 2) + \
-            "AND Plane.time_bounds_lower <= '{}' ".format(
-                self.state['current_stack']['mjd_date'] + 2) + \
+            "AND Observation.proposal_id = '{}' ".format(
+                self.state['current_stack']['proposal_id']) + \
             "AND Plane.time_exposure = '{}' ".format(
                 self.state['current_stack']['exptime']) + \
             self.query_suffix
@@ -237,9 +236,9 @@ class Finder:
         """
         shortdark_query = self.query_prefix + \
             "AND Observation.type = 'DARK' " + \
-            "AND Plane.time_bounds_lower >= '{}' ".format(
+            "AND Plane.time_bounds_lower >= '{:.4f}' ".format(
                 self.state['current_stack']['mjd_date'] - 2) + \
-            "AND Plane.time_bounds_lower <= '{}' ".format(
+            "AND Plane.time_bounds_lower <= '{:.4f}' ".format(
                 self.state['current_stack']['mjd_date'] + 2) + \
             "AND Plane.time_exposure >= '0.99' " + \
             "AND Plane.time_exposure <= '1.01' " + \
@@ -257,25 +256,42 @@ class Finder:
         found.
         """
         self.logger.debug("Finding {} frames.".format(frame_type))
+        self.logger.debug("{} query: \n{}".format(frame_type, query))
         key = 'min_{}s'.format(frame_type)
         try:
-            table = Finder._do_query(query)
+            table = self._do_query_retry_wrapper(query, 1)
         except Exception as e:
-            if self.state['config']['DATAFINDER'][key]:
-                logging.critical("{} query failed.".format(frame_type))
+            if int(self.state['config']['DATAFINDER'][key]):
+                self.logger.critical("{} query failed.".format(frame_type))
                 raise e
             else:
                 self.logger.debug("Found no frames; returning empty table.")
-                return astropy.table.Table(names=('publisherID', 'productID'))
+                return astropy.table.Table(names=(
+                    'publisherID', 'productID', 'time_bounds_lower',
+                    'observationID'))
 
         if len(table) < \
-                self.state['config']['DATAFINDER'][key]:
+                int(self.state['config']['DATAFINDER'][key]):
             raise RuntimeError("Required {} {} frames; found {}.".format(
                 self.state['config']['DATAFINDER'][key],
                 frame_type,
                 len(table)))
-        self.logger.debug("Found {} {} frames.".format(len(table), frame_type))
+        self.logger.info("Found {} {} frames.".format(len(table), frame_type))
         return table
+
+    def _do_query_retry_wrapper(self, query, n_tries):
+        """
+        Recursive wrapper to retry failed queries.
+        """
+        if n_tries > int(self.state['config']['DATAFINDER']['max_tries']):
+            raise RuntimeError("Max retries exceeded!")
+        else:
+            try:
+                return Finder._do_query(query)
+            except Exception:
+                self.logger.warning("Retrying query; attempt {}.".format(
+                    n_tries))
+                self._do_query_retry_wrapper(query, n_tries+1)
 
     @staticmethod
     def _do_query(query):  # pragma: no cover
